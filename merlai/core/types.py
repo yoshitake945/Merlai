@@ -1,15 +1,16 @@
 """
-Type definitions for music data structures.
+Core data types for music generation.
 """
 
 from typing import List, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pydantic import BaseModel
 
 
 @dataclass
 class Note:
     """Represents a musical note."""
+
     pitch: int  # MIDI pitch (0-127)
     velocity: int  # MIDI velocity (0-127)
     duration: float  # Duration in seconds
@@ -20,6 +21,7 @@ class Note:
 @dataclass
 class Chord:
     """Represents a musical chord."""
+
     root: int  # Root note pitch
     chord_type: str  # "major", "minor", "dim", "aug", etc.
     duration: float  # Duration in seconds
@@ -30,6 +32,7 @@ class Chord:
 @dataclass
 class Melody:
     """Represents a melodic line."""
+
     notes: List[Note]
     tempo: int = 120
     key: str = "C"
@@ -39,6 +42,7 @@ class Melody:
 @dataclass
 class Harmony:
     """Represents harmonic progression."""
+
     chords: List[Chord]
     style: str = "pop"
     key: str = "C"
@@ -47,6 +51,7 @@ class Harmony:
 @dataclass
 class Track:
     """Represents a MIDI track."""
+
     name: str
     notes: List[Note]
     channel: int = 0
@@ -56,6 +61,7 @@ class Track:
 @dataclass
 class Song:
     """Represents a complete song."""
+
     tracks: List[Track]
     tempo: int = 120
     time_signature: str = "4/4"
@@ -63,9 +69,19 @@ class Song:
     duration: float = 0.0
 
 
+class NoteData(BaseModel):
+    """Note data for API requests."""
+
+    pitch: int
+    velocity: int
+    duration: float
+    start_time: float
+
+
 class GenerationRequest(BaseModel):
     """Request model for music generation."""
-    melody: List[Note]
+
+    melody: List[NoteData]
     style: str = "pop"
     tempo: int = 120
     key: str = "C"
@@ -76,10 +92,11 @@ class GenerationRequest(BaseModel):
 
 class GenerationResponse(BaseModel):
     """Response model for music generation."""
+
     harmony: Optional[List[Chord]] = None
     bass_line: Optional[List[Note]] = None
     drums: Optional[List[Note]] = None
-    midi_data: Optional[bytes] = None
+    midi_data: Optional[str] = None  # Base64 encoded MIDI data
     duration: float = 0.0
     success: bool = True
-    error_message: Optional[str] = None 
+    error_message: Optional[str] = None

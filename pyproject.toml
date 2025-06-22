@@ -107,6 +107,8 @@ module = [
     "librosa.*",
     "pretty_midi.*",
     "midiutil.*",
+    "click.*",
+    "uvicorn.*",
 ]
 ignore_missing_imports = true
 
