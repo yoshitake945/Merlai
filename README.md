@@ -140,15 +140,38 @@ curl -X POST http://localhost:8000/api/v1/generate \
 
 ## 🐳 Docker Deployment
 
-### Development
+### CPU-only Image (Apple Silicon/Mac/Non-GPU Environments)
 
 ```bash
-# Build and run development environment
-docker-compose up merlai-dev
-
-# Build specific target
-docker build --target development -t merlai:dev .
+docker compose up --build merlai-cpu
 ```
+
+- Use the `merlai-cpu` service for Apple Silicon or environments without a GPU.
+- The `version` attribute in `docker-compose.yml` is deprecated and has been removed for compatibility.
+
+### Debug Container
+
+```bash
+docker compose up --build merlai-debug
+```
+- The `merlai-debug` service supports the `--log-level` option for detailed logging.
+
+### Run Instructions (Local / Container)
+
+#### Local Execution
+
+```bash
+source venv/bin/activate
+merlai serve --reload
+```
+
+#### Docker (CPU-only)
+
+```bash
+docker compose up --build merlai-cpu
+```
+
+- The server will be available at http://localhost:8000
 
 ### Production
 

@@ -129,6 +129,37 @@ services:
     networks:
       - merlai-network
 
+  # CPU専用開発環境 (Apple Silicon/Mac対応)
+  merlai-cpu:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.cpu
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    environment:
+      - ENVIRONMENT=development
+    networks:
+      - merlai-network
+
+  # デバッグ用環境
+  merlai-debug:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.debug
+    ports:
+      - "8001:8000"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=debug
+    networks:
+      - merlai-network
+
 volumes:
   redis-data:
   postgres-data:

@@ -12,9 +12,9 @@
 - **型安全性**: mypy, pydantic, dataclasses
 
 ### インフラストラクチャ
-- **コンテナ**: Docker
-- **オーケストレーション**: Kubernetes
-- **GPU管理**: NVIDIA Container Runtime
+- Docker（CPU/GPU両対応: Apple SiliconやGPU非搭載環境もサポート）
+- Kubernetes
+- NVIDIA Container Runtime（GPU利用時のみ）
 - **ストレージ**: MinIO (S3互換)
 
 ## アーキテクチャ構成
@@ -77,6 +77,8 @@
 ## 開発フェーズ
 
 ### Phase 1: 基盤構築
+- [x] CPU専用Dockerfileとdocker-composeサービス（`merlai-cpu`）の実装
+- [x] Apple Silicon/Mac環境での動作検証
 - [ ] Docker環境構築
 - [ ] Kubernetesクラスタ設定
 - [ ] 基本的なMIDI生成API
