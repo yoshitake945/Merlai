@@ -1,5 +1,23 @@
 # Merlai Architecture Design
 
+## ⚠️ Important Notice / 重要な注記
+
+**AI-Assisted Development / AIアシスト開発:**
+このアーキテクチャ設計書は、AIコーディングアシスタントの支援を受けて作成されています。
+開発者は技術スタックに習熟しているわけではなく、AIの提案に基づいて設計を進めています。
+実装前に十分な技術検証とレビューを推奨します。
+
+This architecture document was created with the assistance of AI coding tools.
+The developer is not proficient in the technical stacks and relies on AI suggestions for design decisions.
+Thorough technical validation and review are recommended before implementation.
+
+**Language Proficiency / 言語能力:**
+開発者は英語が堪能ではないため、技術的な説明に不自然な点や誤りが含まれる可能性があります。
+詳細な技術議論については、日本語でのコミュニケーションを推奨します。
+
+The developer is not fluent in English, so there may be unnatural expressions or mistakes in technical explanations.
+For detailed technical discussions, Japanese communication is recommended.
+
 ## システム概要
 楽曲制作支援AIシステム - メインメロディを基に、AIが不足音を補完し、MIDIデータとして出力
 

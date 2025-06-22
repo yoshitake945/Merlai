@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11-slim as base
 
 WORKDIR /app
 
@@ -14,8 +14,29 @@ COPY . /app/
 
 # 依存関係をインストール
 RUN pip install --upgrade pip setuptools wheel
+RUN pip install -e .[cpu]
+
+# Development stage
+FROM base as development
+
+# 開発用依存関係をインストール
 RUN pip install -e .[dev]
 
+EXPOSE 8000 8001
+
+CMD ["merlai", "serve", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# Production stage
+FROM base as production
+
+# 非rootユーザーを作成
+RUN useradd -m -u 1000 merlai && chown -R merlai:merlai /app
+USER merlai
+
 EXPOSE 8000
+
+# ヘルスチェック
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
 CMD ["merlai", "serve", "--host", "0.0.0.0", "--port", "8000"] 

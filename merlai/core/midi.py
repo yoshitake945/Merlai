@@ -89,6 +89,8 @@ class MIDIGenerator:
 
     def quantize_notes(self, notes: List[Note], grid_size: float = 0.25) -> List[Note]:
         """Quantize notes to a grid."""
+        if grid_size <= 0:
+            raise ValueError(f"grid_size must be positive, got {grid_size}")
         quantized_notes = []
         for note in notes:
             # Quantize start time

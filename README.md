@@ -4,22 +4,49 @@
 
 You provide the main melody – Merlai complements the rest with MIDI-ready suggestions.
 
-**注記 / Note:**
+## ⚠️ Important Notice / 重要な注記
+
+**AI-Assisted Development / AIアシスト開発:**
 本プロジェクトのほぼ全てのコード、設計、ドキュメントは、AIコーディングアシスタント（例: OpenAI GPT-4, GitHub Copilot等）を活用して作成されています。
-また、開発者は英語が堪能ではないため、英語表現に不自然な点や誤りが含まれる可能性があります。
+開発者はPythonやその他の技術スタックに習熟しているわけではなく、AIの支援に大きく依存して開発を進めています。
 
 Almost all code, design, and documentation in this project were created with the assistance of AI coding tools (e.g., OpenAI GPT-4, GitHub Copilot, etc.).
-Also, the developer is not fluent in English, so there may be unnatural expressions or mistakes in English.
+The developer is not proficient in Python or other technical stacks and heavily relies on AI assistance for development.
+
+**Language Proficiency / 言語能力:**
+開発者は英語が堪能ではないため、英語表現に不自然な点や誤りが含まれる可能性があります。
+技術的な議論や改善提案については、日本語でのコミュニケーションを推奨します。
+英語学習中であり、コミュニティからの理解と支援をいただけると幸いです。
+
+The developer is not fluent in English, so there may be unnatural expressions or mistakes in English.
+For technical discussions and improvement suggestions, Japanese communication is recommended.
+The developer is currently learning English and appreciates understanding and support from the community.
+
+**Code Quality / コード品質:**
+AI生成コードのため、ベストプラクティスに従っていない部分や、最適化されていない箇所が存在する可能性があります。
+プロダクション環境での使用前に、十分なテストとレビューを推奨します。
+
+As this is AI-generated code, there may be parts that don't follow best practices or are not optimized.
+Thorough testing and review are recommended before use in production environments.
+
+## 👨‍💻 Developer / 開発者
+
+**Yoshitake Asano**
+- GitHub: [@yoshitake945](https://github.com/yoshitake945)
+- Role: Product Design & Architecture
+- Contact: Create an issue on GitHub for questions or support
 
 ## 🚀 Features
 
-- **AI-assisted harmony and rhythm completion** - Generate complementary parts based on your melody
-- **MIDI export for DAW integration** - Seamless workflow with your favorite DAW
-- **Lightning-fast draft generation** - Real-time AI suggestions
-- **Extensible with external sound plugins** - Automatic plugin recommendations
-- **GPU-accelerated processing** - Optimized for performance
-- **Container-ready deployment** - Docker and Kubernetes support
-- **Edge computing support** - Local GPU server deployment
+- **AI-Powered Music Generation**: Generate harmony, bass, and drums from melody
+- **MIDI Export**: Export generated music as MIDI files
+- **Plugin Management**: Manage and recommend sound plugins
+- **RESTful API**: FastAPI-based API for integration
+- **CLI Interface**: Command-line interface for local development
+- **Docker Support**: Containerized deployment with CPU/GPU support
+- **Cloud Native**: Support for Docker, Podman, and containerd
+- **Kubernetes Ready**: Production-ready Kubernetes manifests
+- **Multi-Architecture**: Support for AMD64, ARM64, and ARM32
 
 ## 🏗️ Architecture
 
@@ -65,7 +92,7 @@ Also, the developer is not fluent in English, so there may be unnatural expressi
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-org/merlai.git
+   git clone https://github.com/yoshitake945/merlai.git
    cd merlai
    ```
 
@@ -145,61 +172,35 @@ curl -X POST http://localhost:8000/api/v1/generate \
   }'
 ```
 
-## 🐳 Docker Deployment
+## 🐳 Container Runtime Support
 
-### CPU-only Image (Apple Silicon/Mac/Non-GPU Environments)
+Merlai supports multiple container runtimes for flexibility:
 
+### Docker (Default)
 ```bash
-docker compose up --build merlai-cpu
+docker build -f docker/Dockerfile.cpu -t merlai:latest .
+docker run -p 8000:8000 merlai:latest
 ```
 
-- Use the `merlai-cpu` service for Apple Silicon or environments without a GPU.
-- The `version` attribute in `docker-compose.yml` is deprecated and has been removed for compatibility.
-
-### Debug Container
-
+### Podman (Rootless)
 ```bash
-docker compose up --build merlai-debug
-```
-- The `merlai-debug` service supports the `--log-level` option for detailed logging.
-
-### Run Instructions (Local / Container)
-
-#### Local Execution
-
-```bash
-source venv/bin/activate
-merlai serve --reload
+podman build -f docker/Dockerfile.cpu -t merlai:latest .
+podman run -p 8000:8000 merlai:latest
 ```
 
-#### Docker (CPU-only)
-
+### containerd
 ```bash
-docker compose up --build merlai-cpu
+ctr images pull merlai:latest
+ctr run --rm -t merlai:latest merlai-instance
 ```
 
-- The server will be available at http://localhost:8000
-
-### Production
-
+### Unified Management Script
 ```bash
-# Build production image
-docker build --target production -t merlai:latest .
+# Use the unified script for any runtime
+./scripts/container-runtime.sh up
 
-# Run with GPU support
-docker run --gpus all -p 8000:8000 merlai:latest
-```
-
-### Kubernetes
-
-```bash
-# Apply Kubernetes manifests
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/configmap.yaml
-kubectl apply -f k8s/deployment.yaml
-
-# Check deployment status
-kubectl get pods -n merlai
+# Switch runtime
+CONTAINER_RUNTIME=podman ./scripts/container-runtime.sh up
 ```
 
 ## 🎯 Edge Computing
