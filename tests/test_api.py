@@ -134,6 +134,79 @@ class TestAPIEndpoints:
             assert "plugin_name" in data
             assert "parameters" in data
     
+    def test_plugin_presets_endpoint(self):
+        """Test plugin presets endpoint."""
+        # First get list of plugins
+        response = self.client.get("/api/v1/plugins")
+        assert response.status_code == 200
+        
+        plugins = response.json()["plugins"]
+        if plugins:
+            plugin_name = plugins[0]["name"]
+            # Get plugin presets
+            response = self.client.get(f"/api/v1/plugins/{plugin_name}/presets")
+            assert response.status_code == 200
+            
+            data = response.json()
+            assert "plugin_name" in data
+            assert "presets" in data
+    
+    def test_plugin_info_endpoint(self):
+        """Test plugin info endpoint."""
+        # First get list of plugins
+        response = self.client.get("/api/v1/plugins")
+        assert response.status_code == 200
+        
+        plugins = response.json()["plugins"]
+        if plugins:
+            plugin_name = plugins[0]["name"]
+            # Get plugin info
+            response = self.client.get(f"/api/v1/plugins/{plugin_name}")
+            assert response.status_code == 200
+            
+            data = response.json()
+            assert "name" in data
+            assert "version" in data
+            assert "manufacturer" in data
+            assert "plugin_type" in data
+            assert "category" in data
+            assert "file_path" in data
+            assert "is_loaded" in data
+            assert "parameters" in data
+            assert "presets" in data
+    
+    def test_plugin_parameters_nonexistent(self):
+        """Test plugin parameters endpoint with nonexistent plugin."""
+        response = self.client.get("/api/v1/plugins/nonexistent_plugin/parameters")
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"]
+    
+    def test_plugin_presets_nonexistent(self):
+        """Test plugin presets endpoint with nonexistent plugin."""
+        response = self.client.get("/api/v1/plugins/nonexistent_plugin/presets")
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"]
+    
+    def test_plugin_info_nonexistent(self):
+        """Test plugin info endpoint with nonexistent plugin."""
+        response = self.client.get("/api/v1/plugins/nonexistent_plugin")
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"]
+    
+    def test_plugin_parameters_not_loaded(self):
+        """Test plugin parameters endpoint with plugin that is not loaded."""
+        # First get list of plugins
+        response = self.client.get("/api/v1/plugins")
+        assert response.status_code == 200
+        
+        plugins = response.json()["plugins"]
+        if plugins:
+            plugin_name = plugins[0]["name"]
+            # Try to get parameters without loading the plugin
+            response = self.client.get(f"/api/v1/plugins/{plugin_name}/parameters")
+            assert response.status_code == 400
+            assert "not loaded" in response.json()["detail"]
+    
     def test_plugin_scan_endpoint(self):
         """Test plugin scan functionality."""
         # This endpoint doesn't exist in current API, so test the scan_plugins method indirectly
@@ -229,7 +302,7 @@ class TestAPIEndpoints:
     def test_plugin_detail_nonexistent(self):
         """Test plugin detail endpoint with nonexistent plugin name."""
         response = self.client.get("/api/v1/plugins/nonexistent_plugin/parameters")
-        assert response.status_code == 200  # Current implementation returns 200 even for nonexistent plugins
+        assert response.status_code == 404  # Should return 404 for nonexistent plugins
     
     def test_plugin_detail_invalid_id_format(self):
         """Test plugin detail endpoint with invalid name format."""
@@ -742,7 +815,7 @@ class TestAPIComprehensiveErrorCases:
     def test_plugin_detail_nonexistent(self):
         """Test plugin detail endpoint with nonexistent plugin name."""
         response = self.client.get("/api/v1/plugins/nonexistent_plugin/parameters")
-        assert response.status_code == 200  # Current implementation returns 200 even for nonexistent plugins
+        assert response.status_code == 404  # Should return 404 for nonexistent plugins
     
     def test_plugin_detail_invalid_id_format(self):
         """Test plugin detail endpoint with invalid name format."""

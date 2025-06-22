@@ -296,29 +296,35 @@ pytest --cov=merlai tests/
 
 ## 🔮 Roadmap
 
-### v0.1.0: Foundation
+### v0.1.0: Foundation (Current)
 - [x] Basic CLI + MIDI generator
-- [x] Docker containerization
+- [x] Docker containerization (CPU)
 - [x] Type-safe Python codebase
 - [x] Plugin scanning system
+- [x] RESTful API with FastAPI
+- [x] Comprehensive test suite
+- [x] Documentation (API, Operations, Security, Code of Conduct)
 
-### v0.2.0: AI Integration
-- [ ] AI draft filler (melody, bass, drums)
-- [ ] GPU-optimized inference
-- [ ] Real-time generation API
+### v0.2.0: AI Integration (Next Priority)
+- [ ] AI model integration (Hugging Face, etc.)
+- [ ] Real-time music generation
 - [ ] Plugin recommendation engine
+- [ ] Advanced plugin management
+- [ ] Performance optimization
 
 ### v0.3.0: Advanced Features
 - [ ] Style transfer and adaptation
 - [ ] Multi-track generation
-- [ ] Advanced plugin integration
 - [ ] DAW plugin development
+- [ ] Kubernetes production deployment
+- [ ] Monitoring and logging
 
 ### v1.0.0: Production Release
 - [ ] Web-based GUI
 - [ ] Cloud deployment
 - [ ] Enterprise features
 - [ ] Community plugin marketplace
+- [ ] Docker GPU support (Lower Priority)
 
 ## 🤝 Contributing
 

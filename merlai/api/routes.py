@@ -202,11 +202,80 @@ async def get_plugin_parameters(
 ) -> dict:
     """Get parameters for a loaded plugin."""
     try:
+        # プラグインが存在するかチェック
+        plugin_info = plugin_manager.get_plugin_info(plugin_name)
+        if not plugin_info:
+            raise HTTPException(
+                status_code=404, detail=f"Plugin '{plugin_name}' not found"
+            )
+        
+        # プラグインがロードされているかチェック
+        if not plugin_manager.is_plugin_loaded(plugin_name):
+            raise HTTPException(
+                status_code=400, detail=f"Plugin '{plugin_name}' is not loaded"
+            )
+        
         parameters = plugin_manager.get_plugin_parameters(plugin_name)
         return {"plugin_name": plugin_name, "parameters": parameters}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to get parameters: {str(e)}"
+        )
+
+
+@router.get("/plugins/{plugin_name}/presets")
+async def get_plugin_presets(
+    plugin_name: str, plugin_manager: PluginManager = Depends(get_plugin_manager)
+) -> dict:
+    """Get presets for a plugin."""
+    try:
+        # プラグインが存在するかチェック
+        plugin_info = plugin_manager.get_plugin_info(plugin_name)
+        if not plugin_info:
+            raise HTTPException(
+                status_code=404, detail=f"Plugin '{plugin_name}' not found"
+            )
+        
+        presets = plugin_manager.get_presets(plugin_name)
+        return {"plugin_name": plugin_name, "presets": presets}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get presets: {str(e)}"
+        )
+
+
+@router.get("/plugins/{plugin_name}")
+async def get_plugin_info(
+    plugin_name: str, plugin_manager: PluginManager = Depends(get_plugin_manager)
+) -> dict:
+    """Get detailed information about a specific plugin."""
+    try:
+        plugin_info = plugin_manager.get_plugin_info(plugin_name)
+        if not plugin_info:
+            raise HTTPException(
+                status_code=404, detail=f"Plugin '{plugin_name}' not found"
+            )
+        
+        return {
+            "name": plugin_info.name,
+            "version": plugin_info.version,
+            "manufacturer": plugin_info.manufacturer,
+            "plugin_type": plugin_info.plugin_type,
+            "category": plugin_info.category,
+            "file_path": plugin_info.file_path,
+            "is_loaded": plugin_info.is_loaded,
+            "parameters": plugin_info.parameters,
+            "presets": plugin_info.presets,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get plugin info: {str(e)}"
         )
 
 

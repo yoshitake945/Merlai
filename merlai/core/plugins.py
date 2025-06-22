@@ -140,6 +140,7 @@ class PluginManager:
     def get_plugin_parameters(self, plugin_name: str) -> List[PluginParameter]:
         """Get parameters for a loaded plugin."""
         if plugin_name not in self.loaded_plugins:
+            # プラグインが存在しない場合は空リストを返す（正常なエラー）
             return []
 
         # This would return actual plugin parameters
@@ -168,6 +169,7 @@ class PluginManager:
     ) -> bool:
         """Set a parameter value for a loaded plugin."""
         if plugin_name not in self.loaded_plugins:
+            # プラグインが存在しない場合はFalseを返す（正常なエラー）
             return False
 
         # This would set actual plugin parameters
@@ -177,6 +179,7 @@ class PluginManager:
     def get_presets(self, plugin_name: str) -> List[PluginPreset]:
         """Get available presets for a plugin."""
         if plugin_name not in self.plugins:
+            # プラグインが存在しない場合は空リストを返す（正常なエラー）
             return []
 
         # This would return actual plugin presets
@@ -193,6 +196,14 @@ class PluginManager:
                 category="Bright",
             ),
         ]
+
+    def get_plugin_info(self, plugin_name: str) -> Optional[PluginInfo]:
+        """Get information about a specific plugin."""
+        return self.plugins.get(plugin_name)
+
+    def is_plugin_loaded(self, plugin_name: str) -> bool:
+        """Check if a plugin is loaded."""
+        return plugin_name in self.loaded_plugins
 
     def _is_plugin_file(self, file_path: Path) -> bool:
         """Check if a file is a plugin file."""
