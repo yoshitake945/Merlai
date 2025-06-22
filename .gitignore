@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+.env*
+
+# OS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# MIDI / Audio outputs
+*.mid
+*.midi
+*.wav
+samples/
+output/
+
+# Docker
+*.pid
+*.sock
+docker-compose.override.yml
