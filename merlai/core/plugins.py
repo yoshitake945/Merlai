@@ -139,63 +139,75 @@ class PluginManager:
 
     def get_plugin_parameters(self, plugin_name: str) -> List[PluginParameter]:
         """Get parameters for a loaded plugin."""
-        if plugin_name not in self.loaded_plugins:
-            # プラグインが存在しない場合は空リストを返す（正常なエラー）
-            return []
+        try:
+            if plugin_name not in self.loaded_plugins:
+                # プラグインが存在しない場合は空リストを返す（正常なエラー）
+                return []
 
-        # This would return actual plugin parameters
-        # For now, return dummy parameters
-        return [
-            PluginParameter(
-                name="Volume",
-                value=0.5,
-                min_value=0.0,
-                max_value=1.0,
-                default_value=0.5,
-                unit="dB",
-            ),
-            PluginParameter(
-                name="Cutoff",
-                value=0.7,
-                min_value=0.0,
-                max_value=1.0,
-                default_value=0.5,
-                unit="Hz",
-            ),
-        ]
+            # This would return actual plugin parameters
+            # For now, return dummy parameters
+            return [
+                PluginParameter(
+                    name="Volume",
+                    value=0.5,
+                    min_value=0.0,
+                    max_value=1.0,
+                    default_value=0.5,
+                    unit="dB",
+                ),
+                PluginParameter(
+                    name="Cutoff",
+                    value=0.7,
+                    min_value=0.0,
+                    max_value=1.0,
+                    default_value=0.5,
+                    unit="Hz",
+                ),
+            ]
+        except Exception:
+            # 例外が発生した場合は空リストを返す
+            return []
 
     def set_plugin_parameter(
         self, plugin_name: str, parameter_name: str, value: float
     ) -> bool:
         """Set a parameter value for a loaded plugin."""
-        if plugin_name not in self.loaded_plugins:
-            # プラグインが存在しない場合はFalseを返す（正常なエラー）
-            return False
+        try:
+            if plugin_name not in self.loaded_plugins:
+                # プラグインが存在しない場合はFalseを返す（正常なエラー）
+                return False
 
-        # This would set actual plugin parameters
-        # For now, just return success
-        return True
+            # This would set actual plugin parameters
+            # For now, just return success
+            return True
+        except Exception:
+            # 例外が発生した場合はFalseを返す
+            return False
 
     def get_presets(self, plugin_name: str) -> List[PluginPreset]:
         """Get available presets for a plugin."""
-        if plugin_name not in self.plugins:
-            # プラグインが存在しない場合は空リストを返す（正常なエラー）
-            return []
+        try:
+            if plugin_name not in self.plugins:
+                # プラグインが存在しない場合は空リストを返す（正常なエラー）
+                return []
 
-        # This would return actual plugin presets
-        # For now, return dummy presets
-        return [
-            PluginPreset(
-                name="Default",
-                parameters={"Volume": 0.5, "Cutoff": 0.7},
-                category="Default",
-            ),
-            PluginPreset(
-                name="Bright",
-                parameters={"Volume": 0.6, "Cutoff": 0.9},
-                category="Bright",
-            ),
-        ]
+            # This would return actual plugin presets
+            # For now, return dummy presets
+            return [
+                PluginPreset(
+                    name="Default",
+                    parameters={"Volume": 0.5, "Cutoff": 0.7},
+                    category="Default",
+                ),
+                PluginPreset(
+                    name="Bright",
+                    parameters={"Volume": 0.6, "Cutoff": 0.9},
+                    category="Bright",
+                ),
+            ]
+        except Exception:
+            # 例外が発生した場合は空リストを返す
+            return []
 
     def get_plugin_info(self, plugin_name: str) -> Optional[PluginInfo]:
         """Get information about a specific plugin."""
@@ -278,3 +290,21 @@ class PluginManager:
         except Exception as e:
             print(f"Failed to import plugin config: {e}")
             return False
+
+    def create_midi_file(self, song):
+        """Create MIDI file from song data using MIDIGenerator."""
+        from .midi import MIDIGenerator
+        generator = MIDIGenerator()
+        return generator.create_midi_file(song)
+
+    def create_midi_from_notes(self, notes, tempo=120):
+        """Create MIDI file from notes using MIDIGenerator."""
+        from .midi import MIDIGenerator
+        generator = MIDIGenerator()
+        return generator.create_midi_from_notes(notes, tempo)
+
+    def merge_tracks(self, tracks):
+        """Merge tracks into a MIDI file using MIDIGenerator."""
+        from .midi import MIDIGenerator
+        generator = MIDIGenerator()
+        return generator.merge_tracks(tracks)

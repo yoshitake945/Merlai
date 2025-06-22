@@ -62,6 +62,24 @@ class Harmony:
 
 
 @dataclass
+class Bass:
+    """Represents a bass line."""
+
+    notes: List[Note]
+    style: str = "pop"
+    key: str = "C"
+
+
+@dataclass
+class Drums:
+    """Represents a drum pattern."""
+
+    notes: List[Note]
+    style: str = "pop"
+    tempo: int = 120
+
+
+@dataclass
 class Track:
     """Represents a MIDI track."""
 
