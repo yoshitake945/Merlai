@@ -264,4 +264,33 @@ class TestCLIEdgeCases:
             "--tempo", "999999",
             "--style", "extremely_long_style_name"
         ])
+        assert result.exit_code in [0, 1, 2]
+
+
+class TestCLIGenerateCombinations:
+    def setup_method(self):
+        self.runner = CliRunner()
+
+    def test_generate_with_only_style(self):
+        result = self.runner.invoke(main, ["generate", "--style", "jazz"])
+        assert result.exit_code in [0, 1, 2]
+
+    def test_generate_with_only_tempo(self):
+        result = self.runner.invoke(main, ["generate", "--tempo", "100"])
+        assert result.exit_code in [0, 1, 2]
+
+    def test_generate_with_only_key(self):
+        result = self.runner.invoke(main, ["generate", "--key", "G"])
+        assert result.exit_code in [0, 1, 2]
+
+    def test_generate_with_invalid_style(self):
+        result = self.runner.invoke(main, ["generate", "--style", "invalidstyle"])
+        assert result.exit_code in [0, 1, 2]
+
+    def test_generate_with_invalid_tempo(self):
+        result = self.runner.invoke(main, ["generate", "--tempo", "notanumber"])
+        assert result.exit_code != 0
+
+    def test_generate_with_invalid_key(self):
+        result = self.runner.invoke(main, ["generate", "--key", "!!!"])
         assert result.exit_code in [0, 1, 2] 

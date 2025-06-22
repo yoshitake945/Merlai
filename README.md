@@ -29,131 +29,38 @@ AI生成コードのため、ベストプラクティスに従っていない部
 As this is AI-generated code, there may be parts that don't follow best practices or are not optimized.
 Thorough testing and review are recommended before use in production environments.
 
-## 👨‍💻 Developer / 開発者
-
-**Yoshitake Asano**
-- GitHub: [@yoshitake945](https://github.com/yoshitake945)
-- Role: Product Design & Architecture
-- Contact: Create an issue on GitHub for questions or support
-
-## 🚀 Features
-
-- **AI-Powered Music Generation**: Generate harmony, bass, and drums from melody
-- **MIDI Export**: Export generated music as MIDI files
-- **Plugin Management**: Manage and recommend sound plugins
-- **RESTful API**: FastAPI-based API for integration
-- **CLI Interface**: Command-line interface for local development
-- **Docker Support**: Containerized deployment with CPU/GPU support
-- **Cloud Native**: Support for Docker, Podman, and containerd
-- **Kubernetes Ready**: Production-ready Kubernetes manifests
-- **Multi-Architecture**: Support for AMD64, ARM64, and ARM32
-
-## 🏗️ Architecture
-
-### Technology Stack
-
-- **AI/ML**: Python + PyTorch/TensorFlow + Transformers
-- **Performance**: Rust (for critical audio processing)
-- **API**: FastAPI with async support
-- **Type Safety**: mypy, pydantic, dataclasses
-- **Infrastructure**: Docker, Kubernetes, NVIDIA Container Runtime
-- **Storage**: MinIO (S3-compatible), PostgreSQL, Redis
-
-### System Design
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Frontend      │    │   API Gateway   │    │   Auth Service  │
-│   (React/Vue)   │◄──►│   (Kong/Nginx)  │◄──►│   (JWT/OAuth)   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │
-                                ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  MIDI Generator │    │  AI Orchestrator│    │  Plugin Manager │
-│   (Rust)        │◄──►│   (Python)      │◄──►│   (Python)      │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │
-                                ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  Model Service  │    │  Training       │    │  Data Pipeline  │
-│   (GPU)         │    │  Service        │    │   (ETL)         │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
-## 🛠️ Installation
+## 🚀 Quick Start
 
 ### Prerequisites
-
 - Python 3.9+
-- NVIDIA GPU (optional, for acceleration)
-- Docker (for containerized deployment)
+- pip
 
-### Quick Start
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yoshitake945/merlai.git
-   cd merlai
-   ```
-
-2. **Setup development environment**
-   ```bash
-   ./scripts/setup_dev.sh
-   ```
-
-3. **Activate virtual environment**
-   ```bash
-   source venv/bin/activate
-   ```
-
-4. **Run the development server**
-   ```bash
-   merlai serve --reload
-   ```
-
-## 📖 Usage
-
-### Command Line Interface
-
-Generate complementary music parts from a melody:
-
+### Installation
 ```bash
-# Generate with sample melody
-merlai generate --style pop --key C --tempo 120
+# Clone the repository
+git clone https://github.com/yoshitake945/Merlai.git
+cd Merlai
 
-# Generate from existing MIDI file
-merlai generate -i input.mid -o output.mid --style rock
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Generate specific parts only
-merlai generate --generate-harmony --generate-bass --no-generate-drums
+# Install dependencies
+pip install -e .
 ```
 
-Scan for available plugins:
+### Usage
 
+#### CLI
 ```bash
-# Scan default plugin directories
-merlai scan-plugins
+# Start the API server
+merlai serve
 
-# Scan specific directory
-merlai scan-plugins -d /path/to/plugins -o plugins.json
+# Generate music from melody
+merlai generate --melody "C4,1.0;E4,1.0;G4,1.0" --style pop --key C
 ```
 
-Get plugin recommendations:
-
-```bash
-merlai recommend-plugins --style electronic --instrument lead
-```
-
-### API Usage
-
-Start the API server:
-
-```bash
-merlai serve --host 0.0.0.0 --port 8000
-```
-
-API endpoints:
-
+#### API
 ```bash
 # Health check
 curl http://localhost:8000/health
@@ -163,192 +70,103 @@ curl -X POST http://localhost:8000/api/v1/generate \
   -H "Content-Type: application/json" \
   -d '{
     "melody": [
-      {"pitch": 60, "velocity": 80, "duration": 0.5, "start_time": 0.0},
-      {"pitch": 62, "velocity": 80, "duration": 0.5, "start_time": 0.5}
+      {"pitch": 60, "velocity": 80, "duration": 1.0, "start_time": 0.0}
     ],
     "style": "pop",
-    "tempo": 120,
     "key": "C"
   }'
 ```
 
-## 🐳 Container Runtime Support
+## 📚 Documentation
 
-Merlai supports multiple container runtimes for flexibility:
+詳細なドキュメントは [`docs/`](docs/) フォルダにあります：
+Detailed documentation is available in the [`docs/`](docs/) folder:
 
-### Docker (Default)
-```bash
-docker build -f docker/Dockerfile.cpu -t merlai:latest .
-docker run -p 8000:8000 merlai:latest
-```
+- **[📖 Documentation Overview](docs/README.md)** - ドキュメント一覧 / Documentation index
+- **[🏗️ Architecture](docs/ARCHITECTURE.md)** - システム設計 / System design
+- **[🔌 API Reference](docs/API.md)** - API仕様書 / API specification
+- **[🚀 Operations Guide](docs/OPERATIONS_GUIDE.md)** - 運用ガイド / Operations guide
+- **[🔧 Troubleshooting](docs/TROUBLESHOOTING.md)** - トラブルシューティング / Troubleshooting guide
 
-### Podman (Rootless)
-```bash
-podman build -f docker/Dockerfile.cpu -t merlai:latest .
-podman run -p 8000:8000 merlai:latest
-```
+## 🎯 Features
 
-### containerd
-```bash
-ctr images pull merlai:latest
-ctr run --rm -t merlai:latest merlai-instance
-```
+- **AI-Powered Music Generation**: Generate harmony, bass, and drums from melody
+- **Multiple Styles**: Support for pop, rock, jazz, electronic, classical
+- **MIDI Output**: Direct MIDI file generation
+- **Plugin Integration**: External sound plugin management
+- **RESTful API**: Easy integration with other applications
+- **CLI Interface**: Command-line tool for quick music generation
 
-### Unified Management Script
-```bash
-# Use the unified script for any runtime
-./scripts/container-runtime.sh up
+## 🏗️ Architecture
 
-# Switch runtime
-CONTAINER_RUNTIME=podman ./scripts/container-runtime.sh up
-```
+Merlai follows a modular architecture with clear separation of concerns:
 
-## 🎯 Edge Computing
+- **Core Music Engine**: Handles music theory and generation
+- **AI Models**: Manages different AI models for music generation
+- **MIDI Processing**: Handles MIDI file creation and manipulation
+- **Plugin System**: Manages external sound plugins
+- **API Layer**: RESTful API for external integration
 
-Deploy Merlai as a local GPU server for composers:
-
-### Benefits
-
-- **Low Latency**: Real-time generation without network delays
-- **Privacy**: Keep your music data local
-- **Customization**: Personalize AI models for your style
-- **Offline Work**: Generate music without internet connection
-
-### Setup
-
-```bash
-# Build edge computing image
-docker build --target gpu-inference -t merlai:edge .
-
-# Run local GPU server
-docker run --gpus all -p 8002:8000 \
-  -v /path/to/models:/app/models \
-  -v /path/to/data:/app/data \
-  merlai:edge
-```
+For detailed architecture information, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## 🔧 Development
 
-### Project Structure
+### Running Tests
+```bash
+# Run all tests
+pytest
 
-```
-merlai/
-├── merlai/
-│   ├── core/           # Core music generation logic
-│   │   ├── music.py    # AI music generation
-│   │   ├── midi.py     # MIDI processing
-│   │   ├── plugins.py  # Plugin management
-│   │   └── types.py    # Data structures
-│   ├── api/            # FastAPI application
-│   │   ├── main.py     # App configuration
-│   │   └── routes.py   # API endpoints
-│   └── cli.py          # Command-line interface
-├── docker/             # Docker configurations
-├── k8s/               # Kubernetes manifests
-├── scripts/           # Setup and utility scripts
-└── tests/             # Test suite
+# Run with coverage
+pytest --cov=merlai
+
+# Run specific test file
+pytest tests/test_api.py
 ```
 
 ### Code Quality
-
 ```bash
-# Run type checking
+# Type checking
 mypy merlai/
 
-# Run linting
-black merlai/
-isort merlai/
+# Linting
 flake8 merlai/
 
-# Run tests
-pytest tests/
-
-# Run with coverage
-pytest --cov=merlai tests/
+# Formatting
+black merlai/
 ```
-
-### Adding New Features
-
-1. **Music Generation**: Extend `MusicGenerator` class in `core/music.py`
-2. **MIDI Processing**: Add methods to `MIDIGenerator` class in `core/midi.py`
-3. **Plugin Support**: Enhance `PluginManager` in `core/plugins.py`
-4. **API Endpoints**: Add routes in `api/routes.py`
-
-## 🚀 Performance Optimization
-
-### GPU Acceleration
-
-- **TensorRT Optimization**: Automatic model optimization
-- **Batch Processing**: Process multiple requests efficiently
-- **Memory Management**: Efficient GPU memory usage
-
-### Caching Strategy
-
-- **Redis**: Cache generated results
-- **CDN**: Distribute plugins and models
-- **Local Cache**: Store frequent patterns
-
-### Scalability
-
-- **Horizontal Scaling**: Multiple GPU instances
-- **Load Balancing**: Distribute requests across nodes
-- **Auto-scaling**: Kubernetes HPA for demand-based scaling
-
-## 🔮 Roadmap
-
-### v0.1.0: Foundation (Current)
-- [x] Basic CLI + MIDI generator
-- [x] Docker containerization (CPU)
-- [x] Type-safe Python codebase
-- [x] Plugin scanning system
-- [x] RESTful API with FastAPI
-- [x] Comprehensive test suite
-- [x] Documentation (API, Operations, Security, Code of Conduct)
-
-### v0.2.0: AI Integration (Next Priority)
-- [ ] AI model integration (Hugging Face, etc.)
-- [ ] Real-time music generation
-- [ ] Plugin recommendation engine
-- [ ] Advanced plugin management
-- [ ] Performance optimization
-
-### v0.3.0: Advanced Features
-- [ ] Style transfer and adaptation
-- [ ] Multi-track generation
-- [ ] DAW plugin development
-- [ ] Kubernetes production deployment
-- [ ] Monitoring and logging
-
-### v1.0.0: Production Release
-- [ ] Web-based GUI
-- [ ] Cloud deployment
-- [ ] Enterprise features
-- [ ] Community plugin marketplace
-- [ ] Docker GPU support (Lower Priority)
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ### Development Setup
-
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
 3. Make your changes
-4. Add tests
-5. Submit a pull request
+4. Add tests for new functionality
+5. Run tests: `pytest`
+6. Commit your changes: `git commit -m 'Add amazing feature'`
+7. Push to the branch: `git push origin feature/amazing-feature`
+8. Open a Pull Request
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## 🆘 Support
+
+- **Issues**: [GitHub Issues](https://github.com/yoshitake945/Merlai/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/yoshitake945/Merlai/discussions)
+- **Documentation**: [docs/](docs/)
+- **Troubleshooting**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+
 ## 🙏 Acknowledgments
 
-- PyTorch and Transformers for AI capabilities
-- Pretty MIDI and MIDIUtil for MIDI processing
-- FastAPI for the web framework
-- Docker and Kubernetes communities
+- AI coding assistants for development support
+- Open source community for libraries and tools
+- Music theory resources and research
+- Contributors and users of Merlai
 
 ---
 
-**Made with ❤️ for musicians and creators everywhere.**
+**Note**: This project is actively developed with AI assistance. Please be patient with the developer's English learning process and provide constructive feedback.

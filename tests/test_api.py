@@ -240,7 +240,8 @@ class TestAPIEndpoints:
         }
         
         response = self.client.post("/api/v1/generate", json=request_data)
-        assert response.status_code == 500  # Should fail with empty melody
+        assert response.status_code == 422  # Should fail with empty melody
+        assert "empty" in response.json()["detail"].lower()
     
     def test_plugins_endpoint_no_plugins(self):
         """Test plugins endpoint when no plugins are available."""
@@ -951,3 +952,43 @@ class TestAPIComprehensiveErrorCases:
         response = self.client.post("/api/v1/generate", data='{"melody": []}')
         # Should still work as JSON is inferred
         assert response.status_code in [200, 400, 422, 500]  # Allow 500 for invalid data 
+
+
+class TestAPIConfig:
+    def setup_method(self):
+        self.client = TestClient(app)
+        app.state.music_generator = MusicGenerator()
+        app.state.midi_generator = MIDIGenerator()
+        app.state.plugin_manager = PluginManager()
+
+    def test_get_config(self):
+        response = self.client.get("/api/v1/config")
+        assert response.status_code == 200
+        data = response.json()
+        assert "temperature" in data
+        assert "max_length" in data
+        assert "batch_size" in data
+
+    def test_update_config_success(self):
+        config_update = {"temperature": 0.7, "max_length": 512}
+        response = self.client.post("/api/v1/config", json=config_update)
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+        assert "updated_config" in data
+        assert data["updated_config"]["temperature"] == 0.7
+
+    def test_update_config_invalid_type(self):
+        config_update = {"temperature": "hot"}
+        response = self.client.post("/api/v1/config", json=config_update)
+        assert response.status_code == 422 or response.status_code == 400
+
+    def test_update_config_missing_body(self):
+        response = self.client.post("/api/v1/config")
+        assert response.status_code in (400, 422)
+
+    def test_update_config_extra_fields(self):
+        config_update = {"unknown_field": 123}
+        response = self.client.post("/api/v1/config", json=config_update)
+        # Depending on implementation, may ignore or error
+        assert response.status_code in (200, 400, 422) 

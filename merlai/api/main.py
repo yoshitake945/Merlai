@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     print("Starting Merlai music generation service...")
 
     # Initialize core components
-    app.state.music_generator = MusicGenerator()
+    app.state.music_generator = MusicGenerator(use_ai_models=True)
     app.state.midi_generator = MIDIGenerator()
     app.state.plugin_manager = PluginManager()
 
