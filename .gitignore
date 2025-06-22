@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.env*
+
+# OS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.code-workspace
+
+# Logs
+*.log
+
+# MIDI / Audio outputs
+*.mid
+*.midi
+*.wav
+samples/
+output/
+
+# Docker
+*.pid
+*.sock
+docker-compose.override.yml
+
+# Testing and coverage
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Documentation with future plans
+CHANGELOG.md
+ARCHITECTURE.md

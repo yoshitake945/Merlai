@@ -1,0 +1,170 @@
+version: '3.8'
+
+services:
+  # Development environment
+  merlai-dev:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: development
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    environment:
+      - ENVIRONMENT=development
+      - CUDA_VISIBLE_DEVICES=0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - merlai-network
+
+  # Production API
+  merlai-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: production
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - CUDA_VISIBLE_DEVICES=0
+    deploy:
+      replicas: 3
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - merlai-network
+    depends_on:
+      - redis
+      - postgres
+
+  # GPU Inference Service
+  merlai-gpu:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: gpu-inference
+    ports:
+      - "8002:8000"
+    environment:
+      - ENVIRONMENT=production
+      - CUDA_VISIBLE_DEVICES=0
+      - MODEL_PATH=/app/models
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - merlai-network
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - merlai-network
+
+  # PostgreSQL for metadata
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: merlai
+      POSTGRES_USER: merlai
+      POSTGRES_PASSWORD: merlai_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - merlai-network
+
+  # MinIO for file storage
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - merlai-network
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - merlai-api
+    networks:
+      - merlai-network
+
+  # CPU専用開発環境 (Apple Silicon/Mac対応)
+  merlai-cpu:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.cpu
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    environment:
+      - ENVIRONMENT=development
+    networks:
+      - merlai-network
+
+  # デバッグ用環境
+  merlai-debug:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.debug
+    ports:
+      - "8001:8000"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=debug
+    networks:
+      - merlai-network
+
+volumes:
+  redis-data:
+  postgres-data:
+  minio-data:
+
+networks:
+  merlai-network:
+    driver: bridge 

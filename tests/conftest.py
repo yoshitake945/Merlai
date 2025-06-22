@@ -1,0 +1,256 @@
+"""
+Pytest configuration and fixtures.
+"""
+
+import pytest
+import tempfile
+import os
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+from merlai.core.types import Note, Melody, Chord, Harmony, Track, Song
+from merlai.core.music import MusicGenerator
+from merlai.core.midi import MIDIGenerator
+from merlai.core.plugins import PluginManager
+
+
+@pytest.fixture
+def sample_notes():
+    """Provide sample notes for testing."""
+    return [
+        Note(pitch=60, velocity=80, duration=1.0, start_time=0.0),
+        Note(pitch=62, velocity=80, duration=1.0, start_time=1.0),
+        Note(pitch=64, velocity=80, duration=1.0, start_time=2.0),
+        Note(pitch=65, velocity=80, duration=1.0, start_time=3.0)
+    ]
+
+
+@pytest.fixture
+def sample_melody(sample_notes):
+    """Provide sample melody for testing."""
+    return Melody(notes=sample_notes, tempo=120, key="C")
+
+
+@pytest.fixture
+def sample_chords():
+    """Provide sample chords for testing."""
+    return [
+        Chord(root=60, chord_type="major", duration=1.0, start_time=0.0),
+        Chord(root=62, chord_type="minor", duration=1.0, start_time=1.0),
+        Chord(root=64, chord_type="major", duration=1.0, start_time=2.0)
+    ]
+
+
+@pytest.fixture
+def sample_harmony(sample_chords):
+    """Provide sample harmony for testing."""
+    return Harmony(chords=sample_chords, style="pop", key="C")
+
+
+@pytest.fixture
+def sample_tracks(sample_notes):
+    """Provide sample tracks for testing."""
+    return [
+        Track(name="Melody", notes=sample_notes, channel=0, instrument=0),
+        Track(name="Bass", notes=sample_notes, channel=1, instrument=32),
+        Track(name="Drums", notes=sample_notes, channel=9, instrument=0)
+    ]
+
+
+@pytest.fixture
+def sample_song(sample_tracks):
+    """Provide sample song for testing."""
+    return Song(tracks=sample_tracks, tempo=120, duration=4.0)
+
+
+@pytest.fixture
+def music_generator():
+    """Provide music generator instance for testing."""
+    return MusicGenerator()
+
+
+@pytest.fixture
+def midi_generator():
+    """Provide MIDI generator instance for testing."""
+    return MIDIGenerator()
+
+
+@pytest.fixture
+def plugin_manager():
+    """Provide plugin manager instance for testing."""
+    return PluginManager()
+
+
+@pytest.fixture
+def temp_midi_file():
+    """Provide temporary MIDI file path for testing."""
+    with tempfile.NamedTemporaryFile(suffix='.mid', delete=False) as tmp_file:
+        yield tmp_file.name
+        # Cleanup
+        if os.path.exists(tmp_file.name):
+            os.unlink(tmp_file.name)
+
+
+@pytest.fixture
+def temp_json_file():
+    """Provide temporary JSON file path for testing."""
+    with tempfile.NamedTemporaryFile(suffix='.json', delete=False) as tmp_file:
+        yield tmp_file.name
+        # Cleanup
+        if os.path.exists(tmp_file.name):
+            os.unlink(tmp_file.name)
+
+
+@pytest.fixture
+def mock_transformer_model():
+    """Mock transformer model for testing."""
+    with patch('merlai.core.music.AutoTokenizer') as mock_tokenizer, \
+         patch('merlai.core.music.AutoModelForCausalLM') as mock_model:
+        
+        # Mock tokenizer
+        mock_tokenizer_instance = Mock()
+        mock_tokenizer.from_pretrained.return_value = mock_tokenizer_instance
+        mock_tokenizer_instance.encode.return_value = Mock()
+        mock_tokenizer_instance.decode.return_value = "NOTE_60_1.0_80 NOTE_64_1.0_80"
+        mock_tokenizer_instance.eos_token_id = 50256
+        
+        # Mock model
+        mock_model_instance = Mock()
+        mock_model.from_pretrained.return_value = mock_model_instance
+        mock_model_instance.generate.return_value = Mock()
+        mock_model_instance.to.return_value = None
+        mock_model_instance.eval.return_value = None
+        
+        yield {
+            'tokenizer': mock_tokenizer,
+            'model': mock_model,
+            'tokenizer_instance': mock_tokenizer_instance,
+            'model_instance': mock_model_instance
+        }
+
+
+@pytest.fixture
+def sample_generation_request():
+    """Provide sample generation request for testing."""
+    from merlai.core.types import GenerationRequest, NoteData
+    
+    return GenerationRequest(
+        melody=[
+            NoteData(pitch=60, velocity=80, duration=1.0, start_time=0.0),
+            NoteData(pitch=62, velocity=80, duration=1.0, start_time=1.0),
+            NoteData(pitch=64, velocity=80, duration=1.0, start_time=2.0)
+        ],
+        style="pop",
+        tempo=120,
+        key="C",
+        generate_harmony=True,
+        generate_bass=True,
+        generate_drums=True
+    )
+
+
+@pytest.fixture
+def sample_plugin_data():
+    """Provide sample plugin data for testing."""
+    return {
+        "id": "test_plugin_1",
+        "name": "Test Plugin 1",
+        "type": "VST3",
+        "path": "/path/to/plugin.vst3",
+        "manufacturer": "Test Company",
+        "version": "1.0.0",
+        "category": "Synthesizer"
+    }
+
+
+@pytest.fixture
+def sample_plugins(sample_plugin_data):
+    """Provide sample plugins list for testing."""
+    return [
+        sample_plugin_data,
+        {
+            "id": "test_plugin_2",
+            "name": "Test Plugin 2",
+            "type": "AU",
+            "path": "/path/to/plugin.component",
+            "manufacturer": "Test Company",
+            "version": "2.0.0",
+            "category": "Effect"
+        }
+    ]
+
+
+# Pytest configuration
+def pytest_configure(config):
+    """Configure pytest."""
+    # Add custom markers
+    config.addinivalue_line(
+        "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
+    )
+    config.addinivalue_line(
+        "markers", "integration: marks tests as integration tests"
+    )
+    config.addinivalue_line(
+        "markers", "unit: marks tests as unit tests"
+    )
+    config.addinivalue_line(
+        "markers", "api: marks tests as API tests"
+    )
+    config.addinivalue_line(
+        "markers", "cli: marks tests as CLI tests"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Modify test collection."""
+    # Mark tests based on file name
+    for item in items:
+        if "test_core" in item.nodeid:
+            item.add_marker(pytest.mark.unit)
+        elif "test_api" in item.nodeid:
+            item.add_marker(pytest.mark.api)
+        elif "test_cli" in item.nodeid:
+            item.add_marker(pytest.mark.cli)
+        elif "test_integration" in item.nodeid:
+            item.add_marker(pytest.mark.integration)
+            item.add_marker(pytest.mark.slow)
+
+
+# Test data generators
+def generate_test_notes(count=10, start_pitch=60, duration=1.0):
+    """Generate test notes."""
+    notes = []
+    for i in range(count):
+        notes.append(Note(
+            pitch=start_pitch + (i % 12),
+            velocity=80,
+            duration=duration,
+            start_time=i * duration
+        ))
+    return notes
+
+
+def generate_test_melody(count=10, tempo=120, key="C"):
+    """Generate test melody."""
+    notes = generate_test_notes(count)
+    return Melody(notes=notes, tempo=tempo, key=key)
+
+
+def generate_test_chords(count=5):
+    """Generate test chords."""
+    chord_types = ["major", "minor", "dim", "aug"]
+    chords = []
+    for i in range(count):
+        chords.append(Chord(
+            root=60 + (i * 2),
+            chord_type=chord_types[i % len(chord_types)],
+            duration=1.0,
+            start_time=i * 1.0
+        ))
+    return chords
+
+
+def generate_test_harmony(count=5, style="pop", key="C"):
+    """Generate test harmony."""
+    chords = generate_test_chords(count)
+    return Harmony(chords=chords, style=style, key=key) 
