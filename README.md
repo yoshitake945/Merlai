@@ -4,6 +4,13 @@
 
 You provide the main melody – Merlai complements the rest with MIDI-ready suggestions.
 
+**注記 / Note:**
+本プロジェクトのほぼ全てのコード、設計、ドキュメントは、AIコーディングアシスタント（例: OpenAI GPT-4, GitHub Copilot等）を活用して作成されています。
+また、開発者は英語が堪能ではないため、英語表現に不自然な点や誤りが含まれる可能性があります。
+
+Almost all code, design, and documentation in this project were created with the assistance of AI coding tools (e.g., OpenAI GPT-4, GitHub Copilot, etc.).
+Also, the developer is not fluent in English, so there may be unnatural expressions or mistakes in English.
+
 ## 🚀 Features
 
 - **AI-assisted harmony and rhythm completion** - Generate complementary parts based on your melody
