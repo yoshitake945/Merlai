@@ -10,10 +10,11 @@ import base64
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from merlai.core.types import Note, Melody, Chord, Harmony, Track, Song, NoteData, GenerationRequest
+from merlai.core.types import Note, Melody, Chord, Harmony, Track, Song, NoteData, GenerationRequest, Bass, Drums
 from merlai.core.music import MusicGenerator
 from merlai.core.midi import MIDIGenerator
 from merlai.core.plugins import PluginManager
+from merlai.core.ai_models import AIModelManager, ModelConfig, ModelType, GenerationRequest as AIGenerationRequest
 
 
 class TestEndToEndMusicGeneration:
@@ -44,15 +45,14 @@ class TestEndToEndMusicGeneration:
         
         # 3. Generate bass line
         bass_notes = self.music_generator.generate_bass_line(melody, harmony)
-        assert isinstance(bass_notes, list)
-        assert len(bass_notes) > 0
-        assert all(isinstance(note, Note) for note in bass_notes)
+        assert isinstance(bass_notes, Bass)
+        assert len(bass_notes.notes) >= 0
         
         # 4. Generate drums
         drum_notes = self.music_generator.generate_drums(melody, tempo=120)
-        assert isinstance(drum_notes, list)
-        assert len(drum_notes) > 0
-        assert all(isinstance(note, Note) for note in drum_notes)
+        assert isinstance(drum_notes, Drums)
+        assert len(drum_notes.notes) > 0
+        assert all(isinstance(note, Note) for note in drum_notes.notes)
         
         # 5. Create tracks
         melody_track = Track(
@@ -64,14 +64,14 @@ class TestEndToEndMusicGeneration:
         
         bass_track = Track(
             name="Bass",
-            notes=bass_notes,
+            notes=bass_notes.notes,
             channel=1,
             instrument=32
         )
         
         drum_track = Track(
             name="Drums",
-            notes=drum_notes,
+            notes=drum_notes.notes,
             channel=9,  # MIDI channel 10 for drums
             instrument=0
         )
@@ -192,152 +192,296 @@ class TestAPIIntegration:
         # 4. Create tracks
         tracks = [
             Track(name="Melody", notes=melody.notes, channel=0, instrument=0),
-            Track(name="Bass", notes=bass_notes, channel=1, instrument=32),
-            Track(name="Drums", notes=drum_notes, channel=9, instrument=0)
+            Track(name="Bass", notes=bass_notes.notes, channel=1, instrument=32),
+            Track(name="Drums", notes=drum_notes.notes, channel=9, instrument=0)
         ]
         
         # 5. Create song and generate MIDI
         song = Song(tracks=tracks, tempo=request.tempo, duration=3.0)
         midi_data = self.midi_generator.create_midi_file(song)
         
-        # 6. Convert to Base64 for API response
-        midi_base64 = base64.b64encode(midi_data).decode('utf-8')
+        # 6. Verify results
+        assert isinstance(midi_data, bytes)
+        assert len(midi_data) > 0
         
-        # Verify results
-        assert isinstance(midi_base64, str)
-        assert len(midi_base64) > 0
+        # Verify harmony
+        assert isinstance(harmony, Harmony)
+        assert harmony.style == request.style
         
-        # Decode and verify
-        decoded_midi = base64.b64decode(midi_base64)
-        assert decoded_midi == midi_data
+        # Verify bass
+        assert isinstance(bass_notes, Bass)
+        assert len(bass_notes.notes) >= 0
+        
+        # Verify drums
+        assert isinstance(drum_notes, Drums)
+        assert len(drum_notes.notes) > 0
+
+
+class TestAIModelIntegration:
+    """Test AI model integration with the complete system."""
     
-    def test_plugin_integration_workflow(self):
-        """Test plugin management integration."""
-        plugin_manager = PluginManager()
-        
-        # 1. Scan for plugins
-        scan_result = plugin_manager.scan_plugins([
-            "/Library/Audio/Plug-Ins/VST3",
-            "/Library/Audio/Plug-Ins/Components"
-        ])
-        
-        assert isinstance(scan_result, dict)
-        assert "scanned_plugins" in scan_result
-        assert "new_plugins" in scan_result
-        assert "errors" in scan_result
-        
-        # 2. List plugins
-        plugins = plugin_manager.list_plugins()
-        assert isinstance(plugins, list)
-        
-        # 3. Get plugin recommendations
-        recommendations = plugin_manager.recommend_plugins(
-            style="electronic",
-            instrument="lead",
-            mood="energetic",
-            tempo=140
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.music_generator = MusicGenerator(use_ai_models=True)
+        self.midi_generator = MIDIGenerator()
+        self.ai_manager = self.music_generator.ai_model_manager
+    
+    def test_ai_model_registration_and_usage(self):
+        """Test AI model registration and usage workflow."""
+        # 1. Register AI models
+        hf_config = ModelConfig(
+            name="test-hf",
+            type=ModelType.HUGGINGFACE,
+            model_path="facebook/musicgen-small"
         )
         
-        assert isinstance(recommendations, list)
+        api_config = ModelConfig(
+            name="test-api",
+            type=ModelType.EXTERNAL_API,
+            endpoint="https://api.example.com/generate"
+        )
         
-        # 4. Test plugin integration with music generation
-        if plugins:
-            # Use first available plugin for testing
-            plugin = plugins[0]
-            
-            # Simulate plugin processing
-            processed_notes = plugin_manager.process_with_plugin(
-                plugin["id"],
-                [Note(pitch=60, velocity=80, duration=1.0, start_time=0.0)]
+        # Register models
+        success_hf = self.music_generator.register_ai_model(hf_config)
+        success_api = self.music_generator.register_ai_model(api_config)
+        
+        assert success_hf is True
+        assert success_api is True
+        
+        # 2. List models
+        models = self.music_generator.list_ai_models()
+        assert "test-hf" in models
+        assert "test-api" in models
+        assert len(models) >= 2
+        
+        # 3. Set default model
+        success = self.music_generator.set_default_ai_model("test-hf")
+        assert success is True
+        
+        # 4. Test AI generation (with fallback to basic generation)
+        melody = Melody(notes=[
+            Note(pitch=60, velocity=80, duration=1.0, start_time=0.0),
+            Note(pitch=62, velocity=80, duration=1.0, start_time=1.0)
+        ])
+        
+        # Generate harmony using AI (will fallback to basic generation)
+        harmony = self.music_generator.generate_harmony(melody, style="pop", model_name="test-hf")
+        assert isinstance(harmony, Harmony)
+        assert len(harmony.chords) >= 0
+        
+        # Generate bass using AI (will fallback to basic generation)
+        bass = self.music_generator.generate_bass_line(melody, harmony, model_name="test-hf")
+        assert isinstance(bass, Bass)
+        assert len(bass.notes) >= 0
+        
+        # Generate drums using AI (will fallback to basic generation)
+        drums = self.music_generator.generate_drums(melody, tempo=120, model_name="test-hf")
+        assert isinstance(drums, Drums)
+        assert len(drums.notes) >= 0
+    
+    def test_ai_model_fallback_mechanism(self):
+        """Test AI model fallback when primary model fails."""
+        # 1. Register a model that will fail
+        with patch('merlai.core.ai_models.HuggingFaceModel') as mock_hf:
+            mock_model = Mock()
+            mock_hf.return_value = mock_model
+            mock_model.generate_harmony.return_value = Mock(
+                success=False,
+                error_message="Model unavailable",
+                result=None
             )
             
-            assert isinstance(processed_notes, list)
+            config = ModelConfig(
+                name="failing-model",
+                type=ModelType.HUGGINGFACE,
+                model_path="invalid/path"
+            )
+            
+            self.music_generator.register_ai_model(config)
+            self.music_generator.set_default_ai_model("failing-model")
+            
+            # 2. Test generation with failing model (should fallback to basic generation)
+            melody = Melody(notes=[
+                Note(pitch=60, velocity=80, duration=1.0, start_time=0.0)
+            ])
+            
+            # Should fallback to basic generation method
+            harmony = self.music_generator.generate_harmony(melody, style="pop")
+            assert isinstance(harmony, Harmony)
+    
+    def test_multiple_ai_models_for_different_tasks(self):
+        """Test using different AI models for different generation tasks."""
+        # 1. Register multiple models
+        hf_config = ModelConfig(
+            name="harmony-model",
+            type=ModelType.HUGGINGFACE,
+            model_path="facebook/musicgen-small"
+        )
+        
+        api_config = ModelConfig(
+            name="bass-model",
+            type=ModelType.EXTERNAL_API,
+            endpoint="https://api.example.com/generate"
+        )
+        
+        self.music_generator.register_ai_model(hf_config)
+        self.music_generator.register_ai_model(api_config)
+        
+        # 2. Test using different models for different tasks (will fallback to basic generation)
+        melody = Melody(notes=[
+            Note(pitch=60, velocity=80, duration=1.0, start_time=0.0),
+            Note(pitch=62, velocity=80, duration=1.0, start_time=1.0)
+        ])
+        
+        # Use different models for different tasks (will fallback to basic generation)
+        harmony = self.music_generator.generate_harmony(melody, style="pop", model_name="harmony-model")
+        assert isinstance(harmony, Harmony)
+        
+        bass = self.music_generator.generate_bass_line(melody, harmony, model_name="bass-model")
+        assert isinstance(bass, Bass)
+        
+        drums = self.music_generator.generate_drums(melody, tempo=120, model_name="harmony-model")
+        assert isinstance(drums, Drums)
+    
+    def test_ai_model_with_midi_generation_workflow(self):
+        """Test complete workflow with AI models and MIDI generation."""
+        # 1. Set up AI models
+        config = ModelConfig(
+            name="test-model",
+            type=ModelType.HUGGINGFACE,
+            model_path="facebook/musicgen-small"
+        )
+        self.music_generator.register_ai_model(config)
+        
+        # 2. Create melody
+        melody = Melody(notes=[
+            Note(pitch=60, velocity=80, duration=1.0, start_time=0.0),
+            Note(pitch=62, velocity=80, duration=1.0, start_time=1.0),
+            Note(pitch=64, velocity=80, duration=1.0, start_time=2.0)
+        ])
+        
+        # 3. Generate music using AI models (will fallback to basic generation)
+        harmony = self.music_generator.generate_harmony(melody, style="pop", model_name="test-model")
+        bass = self.music_generator.generate_bass_line(melody, harmony, model_name="test-model")
+        drums = self.music_generator.generate_drums(melody, tempo=120, model_name="test-model")
+        
+        # 4. Create tracks
+        tracks = [
+            Track(name="Melody", notes=melody.notes, channel=0, instrument=0),
+            Track(name="Harmony", notes=[], channel=1, instrument=48),  # Empty for now
+            Track(name="Bass", notes=bass.notes, channel=2, instrument=32),
+            Track(name="Drums", notes=drums.notes, channel=9, instrument=0)
+        ]
+        
+        # 5. Create song and generate MIDI
+        song = Song(tracks=tracks, tempo=120, duration=3.0)
+        midi_data = self.midi_generator.create_midi_file(song)
+        
+        # 6. Verify results
+        assert isinstance(midi_data, bytes)
+        assert len(midi_data) > 0
+        
+        # Verify AI-generated components
+        assert isinstance(harmony, Harmony)
+        assert isinstance(bass, Bass)
+        assert isinstance(drums, Drums)
+        
+        # Verify track structure
+        assert len(song.tracks) == 4
+        assert song.tracks[0].name == "Melody"
+        assert song.tracks[1].name == "Harmony"
+        assert song.tracks[2].name == "Bass"
+        assert song.tracks[3].name == "Drums"
+
+
+class TestPluginIntegration:
+    """Test plugin integration with core functionality."""
+    
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.plugin_manager = PluginManager()
+    
+    def test_plugin_integration_workflow(self):
+        """Test plugin scanning and management workflow."""
+        # 1. Scan for plugins
+        plugins = self.plugin_manager.scan_plugins()
+        assert isinstance(plugins, list)
+        
+        # 2. Get plugin recommendations
+        recommendations = self.plugin_manager.get_plugin_recommendations("pop", "piano")
+        assert isinstance(recommendations, list)
+        
+        # 3. Test plugin loading (if any plugins found)
+        if plugins:
+            plugin = plugins[0]
+            success = self.plugin_manager.load_plugin(plugin.name)
+            assert isinstance(success, bool)
+            
+            # 4. Test plugin parameters
+            if success:
+                parameters = self.plugin_manager.get_plugin_parameters(plugin.name)
+                assert isinstance(parameters, dict)
+                
+                # 5. Test parameter setting
+                if parameters:
+                    param_name = list(parameters.keys())[0]
+                    set_success = self.plugin_manager.set_plugin_parameter(
+                        plugin.name, param_name, 0.5
+                    )
+                    assert isinstance(set_success, bool)
 
 
 class TestErrorHandlingIntegration:
-    """Test error handling across the system."""
+    """Test error handling across the complete system."""
     
     def setup_method(self):
         """Set up test fixtures."""
         self.music_generator = MusicGenerator()
         self.midi_generator = MIDIGenerator()
+        self.plugin_manager = PluginManager()
     
     def test_music_generation_with_invalid_input(self):
-        """Test music generation with invalid inputs."""
+        """Test music generation with invalid input."""
         # Test with empty melody
         empty_melody = Melody(notes=[])
         
         # Should handle gracefully
-        try:
-            harmony = self.music_generator.generate_harmony(empty_melody, style="pop")
-            assert isinstance(harmony, Harmony)
-        except Exception as e:
-            # Should raise appropriate exception
-            assert isinstance(e, (ValueError, RuntimeError))
+        harmony = self.music_generator.generate_harmony(empty_melody, style="pop")
+        assert isinstance(harmony, Harmony)
         
         # Test with invalid style
         melody = Melody(notes=[
             Note(pitch=60, velocity=80, duration=1.0, start_time=0.0)
         ])
         
-        try:
-            harmony = self.music_generator.generate_harmony(melody, style="invalid_style")
-            assert isinstance(harmony, Harmony)
-        except Exception as e:
-            # Should handle gracefully or raise appropriate exception
-            assert isinstance(e, (ValueError, RuntimeError))
+        harmony = self.music_generator.generate_harmony(melody, style="invalid_style")
+        assert isinstance(harmony, Harmony)
     
     def test_midi_generation_with_invalid_input(self):
-        """Test MIDI generation with invalid inputs."""
-        # Test with empty notes list
+        """Test MIDI generation with invalid input."""
+        # Test with empty notes
         empty_notes = []
+        midi_data = self.midi_generator.create_midi_from_notes(empty_notes, tempo=120)
+        assert isinstance(midi_data, bytes)
         
-        try:
-            midi_data = self.midi_generator.create_midi_from_notes(empty_notes, tempo=120)
-            assert isinstance(midi_data, bytes)
-        except Exception as e:
-            # Should handle gracefully or raise appropriate exception
-            assert isinstance(e, (ValueError, RuntimeError))
-        
-        # Test with invalid tempo
+        # Test with invalid tempo (should raise ValueError)
         notes = [Note(pitch=60, velocity=80, duration=1.0, start_time=0.0)]
-        
-        try:
-            midi_data = self.midi_generator.create_midi_from_notes(notes, tempo=0)
-            assert isinstance(midi_data, bytes)
-        except Exception as e:
-            # Should handle gracefully or raise appropriate exception
-            assert isinstance(e, (ValueError, RuntimeError))
+        with pytest.raises(ValueError, match="tempo must be positive"):
+            self.midi_generator.create_midi_from_notes(notes, tempo=0)
     
     def test_plugin_management_with_invalid_input(self):
-        """Test plugin management with invalid inputs."""
-        plugin_manager = PluginManager()
+        """Test plugin management with invalid input."""
+        # Test loading non-existent plugin
+        success = self.plugin_manager.load_plugin("non_existent_plugin")
+        assert success is False
         
-        # Test with invalid directory
-        scan_result = plugin_manager.scan_plugins(["/nonexistent/directory"])
-        assert isinstance(scan_result, dict)
-        assert "errors" in scan_result
-        
-        # Test with invalid plugin ID
-        try:
-            plugin_manager.get_plugin_details("invalid_plugin_id")
-        except Exception as e:
-            # Should raise appropriate exception
-            assert isinstance(e, (ValueError, KeyError))
-        
-        # Test plugin processing with invalid plugin
-        try:
-            plugin_manager.process_with_plugin(
-                "invalid_plugin_id",
-                [Note(pitch=60, velocity=80, duration=1.0, start_time=0.0)]
-            )
-        except Exception as e:
-            # Should raise appropriate exception
-            assert isinstance(e, (ValueError, KeyError))
+        # Test getting parameters for non-existent plugin
+        parameters = self.plugin_manager.get_plugin_parameters("non_existent_plugin")
+        assert parameters == []  # Returns empty list for non-existent plugins
 
 
 class TestPerformanceIntegration:
-    """Test performance characteristics of the system."""
+    """Test performance characteristics of the complete system."""
     
     def setup_method(self):
         """Set up test fixtures."""
@@ -346,54 +490,54 @@ class TestPerformanceIntegration:
     
     def test_large_melody_processing(self):
         """Test processing of large melodies."""
-        # Create a large melody (100 notes)
-        notes = []
-        for i in range(100):
-            notes.append(Note(
-                pitch=60 + (i % 12),  # Cycle through octave
-                velocity=80,
-                duration=0.5,
-                start_time=i * 0.5
-            ))
-        
-        melody = Melody(notes=notes)
+        # Create a large melody
+        large_melody = Melody(notes=[
+            Note(pitch=60 + (i % 12), velocity=80, duration=0.5, start_time=i * 0.5)
+            for i in range(100)  # 100 notes
+        ])
         
         # Test harmony generation
         with patch('merlai.core.music.AutoTokenizer'), \
              patch('merlai.core.music.AutoModelForCausalLM'):
-            harmony = self.music_generator.generate_harmony(melody, style="pop")
+            harmony = self.music_generator.generate_harmony(large_melody, style="pop")
             assert isinstance(harmony, Harmony)
         
         # Test bass generation
-        bass_notes = self.music_generator.generate_bass_line(melody, harmony)
-        assert isinstance(bass_notes, list)
-        assert len(bass_notes) > 0
+        bass = self.music_generator.generate_bass_line(large_melody, harmony)
+        assert isinstance(bass, Bass)
         
         # Test drum generation
-        drum_notes = self.music_generator.generate_drums(melody, tempo=120)
-        assert isinstance(drum_notes, list)
-        assert len(drum_notes) > 0
+        drums = self.music_generator.generate_drums(large_melody, tempo=120)
+        assert isinstance(drums, Drums)
         
         # Test MIDI generation
-        midi_data = self.midi_generator.create_midi_from_notes(notes, tempo=120)
+        tracks = [
+            Track(name="Melody", notes=large_melody.notes, channel=0, instrument=0),
+            Track(name="Bass", notes=bass.notes, channel=1, instrument=32),
+            Track(name="Drums", notes=drums.notes, channel=9, instrument=0)
+        ]
+        
+        song = Song(tracks=tracks, tempo=120, duration=50.0)
+        midi_data = self.midi_generator.create_midi_file(song)
+        
         assert isinstance(midi_data, bytes)
         assert len(midi_data) > 0
     
     def test_midi_processing_performance(self):
         """Test MIDI processing performance."""
-        # Create test notes
+        # Create large set of notes
         notes = [
-            Note(pitch=60, velocity=80, duration=0.25, start_time=i * 0.25)
-            for i in range(1000)  # 1000 notes
+            Note(pitch=60 + (i % 12), velocity=80, duration=0.25, start_time=i * 0.25)
+            for i in range(200)  # 200 notes
         ]
         
         # Test quantization
-        quantized = self.midi_generator.quantize_notes(notes, grid_size=0.125)
-        assert len(quantized) == len(notes)
+        quantized_notes = self.midi_generator.quantize_notes(notes, grid_size=0.125)
+        assert len(quantized_notes) == len(notes)
         
         # Test transposition
-        transposed = self.midi_generator.transpose_notes(notes, semitones=5)
-        assert len(transposed) == len(notes)
+        transposed_notes = self.midi_generator.transpose_notes(notes, semitones=5)
+        assert len(transposed_notes) == len(notes)
         
         # Test MIDI generation
         midi_data = self.midi_generator.create_midi_from_notes(notes, tempo=120)

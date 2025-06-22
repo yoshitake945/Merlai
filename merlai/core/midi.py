@@ -18,6 +18,9 @@ class MIDIGenerator:
 
     def create_midi_file(self, song: Song) -> bytes:
         """Create MIDI file from song data."""
+        if song.tempo <= 0:
+            raise ValueError(f"tempo must be positive, got {song.tempo}")
+        
         midi = MIDIFile(len(song.tracks), deinterleave=False)
 
         # Set tempo
@@ -34,6 +37,9 @@ class MIDIGenerator:
 
     def create_midi_from_notes(self, notes: List[Note], tempo: int = 120) -> bytes:
         """Create MIDI file from list of notes."""
+        if tempo <= 0:
+            raise ValueError(f"tempo must be positive, got {tempo}")
+        
         midi = MIDIFile(1, deinterleave=False)
         midi.addTempo(0, 0, tempo)
 
