@@ -1,0 +1,148 @@
+Merlai - AI-powered music creation assistant
+
+PRODUCT DESIGN & ARCHITECTURE:
+Copyright 2025 Yoshitake Asano
+GitHub: https://github.com/yoshitake945
+- Product concept and vision
+- System architecture design
+- Technology stack selection
+- User experience design
+- Project management and direction
+
+IMPLEMENTATION:
+AI-Assisted Development
+- Code implementation by AI coding assistants
+- Technical documentation by AI tools
+- Library integration and API design
+- Testing and quality assurance
+
+AI DEVELOPMENT TOOLS USED:
+Primary Development Environment:
+- Cursor (AI-powered code editor)
+  - Built on VS Code with integrated AI assistance
+  - Used for real-time code generation and editing
+  - Provided context-aware suggestions and completions
+
+AI Models and Services:
+- OpenAI GPT-4 (via Cursor integration)
+  - Primary AI model for code generation
+  - Used for architecture design and implementation
+  - Assisted with documentation and testing
+- OpenAI ChatGPT
+  - Used for initial idea brainstorming and concept development
+  - Assisted with product vision and feature planning
+  - Provided creative input for user experience design
+- GitHub Copilot (when available)
+  - Secondary AI assistance for code completion
+  - Used for routine coding tasks and suggestions
+
+Future AI Tools:
+This project may incorporate additional AI tools and services as they become
+available. The development approach embraces continuous integration of new
+AI capabilities to enhance productivity and code quality.
+
+Development Process:
+- Initial concept development with ChatGPT
+- Iterative AI-assisted development with Cursor + GPT-4
+- Human review and refinement of AI-generated code
+- Continuous improvement through AI feedback loops
+- Collaborative development between human and AI
+- Ongoing integration of new AI tools and capabilities
+
+This product includes software developed by:
+- Yoshitake Asano (Product Design & Architecture)
+  - GitHub: https://github.com/yoshitake945
+- AI Coding Assistants (Implementation via Cursor + GPT-4)
+- AI Creative Assistants (Ideation via ChatGPT)
+
+This product includes third-party software and libraries:
+
+FastAPI
+Copyright 2018 Sebastián Ramírez
+Licensed under the MIT License
+https://github.com/tiangolo/fastapi
+
+PyTorch
+Copyright 2016-2025 Facebook, Inc.
+Licensed under the BSD License
+https://github.com/pytorch/pytorch
+
+TensorFlow
+Copyright 2015-2025 The TensorFlow Authors
+Licensed under the Apache License, Version 2.0
+https://github.com/tensorflow/tensorflow
+
+Transformers
+Copyright 2018-2025 The Hugging Face Team
+Licensed under the Apache License, Version 2.0
+https://github.com/huggingface/transformers
+
+MIDIUtil
+Copyright 2008-2025 Mark Conway Wirt
+Licensed under the MIT License
+https://github.com/MarkCWirt/MIDIUtil
+
+Pydantic
+Copyright 2017-2025 Samuel Colvin
+Licensed under the MIT License
+https://github.com/pydantic/pydantic
+
+Uvicorn
+Copyright 2016-2025 Encode OSS Ltd
+Licensed under the BSD License
+https://github.com/encode/uvicorn
+
+Docker
+Copyright 2013-2025 Docker, Inc.
+Licensed under the Apache License, Version 2.0
+https://github.com/docker/docker
+
+Kubernetes
+Copyright 2014-2025 The Kubernetes Authors
+Licensed under the Apache License, Version 2.0
+https://github.com/kubernetes/kubernetes
+
+---
+
+AI-ASSISTED DEVELOPMENT NOTICE:
+This project was developed with comprehensive assistance from AI tools throughout
+the entire development lifecycle. From initial concept development with ChatGPT
+to implementation with Cursor and GPT-4, AI tools have been integral to every
+stage of the development process.
+
+The developer maintains responsibility for:
+- Product vision and user experience
+- System architecture and technology choices
+- Project direction and feature prioritization
+- Overall project management
+- Final decision-making on all aspects
+
+AI tools were responsible for:
+- Initial idea generation and concept development
+- Code implementation and technical details
+- Library integration and API design
+- Documentation and testing
+- Code quality and optimization
+- Creative input and brainstorming
+
+Development Methodology:
+This project demonstrates a comprehensive collaborative development approach
+between human creativity and AI capabilities. The human developer focuses on
+high-level design, product vision, and final decision-making, while AI tools
+handle everything from initial ideation to implementation details. This
+approach enables rapid prototyping and development while maintaining human
+oversight and creative direction.
+
+The development process is designed to be flexible and adaptive, incorporating
+new AI tools and capabilities as they become available. This ensures the
+project remains at the forefront of AI-assisted development practices.
+
+---
+
+For additional information about this project, please visit:
+https://github.com/yoshitake/merlai
+
+For questions, support, or contributions, please:
+- Create an issue on the GitHub repository
+- Contact the developer: https://github.com/yoshitake945
+- Visit the project repository for latest updates 
