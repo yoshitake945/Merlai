@@ -128,10 +128,11 @@ jobs:
       - name: Notify Slack on Success
         if: success()
         uses: 8398a7/action-slack@v3
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
           status: success
-          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
-          channel: '#merlai-ci'
+          channel: '#ci-cd'
           text: |
             ✅ **Merlai CI Pipeline Succeeded**
             • Repository: ${{ github.repository }}
@@ -143,10 +144,11 @@ jobs:
       - name: Notify Slack on Failure
         if: failure()
         uses: 8398a7/action-slack@v3
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
           status: failure
-          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
-          channel: '#merlai-ci'
+          channel: '#ci-cd'
           text: |
             ❌ **Merlai CI Pipeline Failed**
             • Repository: ${{ github.repository }}
