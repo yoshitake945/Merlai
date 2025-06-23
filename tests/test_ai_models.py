@@ -308,7 +308,7 @@ class TestExternalAPIModel:
         assert model.model_name == "test-api-model"
         mock_session_instance.headers.update.assert_called_once()
     
-    @patch('merlai.core.ai_models.requests.get')
+    @patch('merlai.core.ai_models.requests.Session.get')
     def test_external_api_generate_harmony(self, mock_get):
         """Test harmony generation with external API."""
         mock_response = Mock()

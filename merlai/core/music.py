@@ -7,7 +7,6 @@ from typing import List, Optional, Any
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 from .ai_models import AIModelManager, GenerationRequest, ModelConfig, ModelType
 from .types import Bass, Chord, Drums, Harmony, Melody, Note
@@ -33,7 +32,7 @@ class MusicGenerator:
     ) -> None:
         """Initialize the music generator."""
         self.model_path = model_path or "microsoft/DialoGPT-medium"
-        self.tokenizer: Optional[PreTrainedTokenizerBase] = None
+        self.tokenizer: Optional[Any] = None
         self.model: Any = None
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.config = GenerationConfig()
@@ -147,14 +146,15 @@ class MusicGenerator:
             # Decode and convert to harmony
             if self.tokenizer is None:
                 return self._generate_basic_harmony(melody, style)
-            harmony_tokens = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-            return self._tokens_to_harmony(harmony_tokens, style)
+            else:
+                harmony_tokens = self.tokenizer.decode(
+                    outputs[0], skip_special_tokens=True
+                )
+                return self._tokens_to_harmony(harmony_tokens, style)
 
         except Exception as e:
             # Fallback to basic harmony generation on any error
-            print(
-                f"Warning: AI model failed, using basic harmony generation: {e}"  # noqa: E501
-            )
+            print(f"Warning: AI model failed, using basic harmony generation: {e}")
             return self._generate_basic_harmony(melody, style)
 
     def _generate_basic_harmony(self, melody: Melody, style: str) -> Harmony:
@@ -253,9 +253,9 @@ class MusicGenerator:
                     f"Warning: AI model failed, using legacy method: {response.error_message}"  # noqa: E501
                 )
                 return self._generate_drums_legacy(melody, tempo)
-
-        # Legacy method
-        return self._generate_drums_legacy(melody, tempo)
+        else:
+            # Legacy method
+            return self._generate_drums_legacy(melody, tempo)
 
     def _generate_drums_legacy(self, melody: Melody, tempo: int) -> Drums:
         """Legacy drum pattern generation method."""

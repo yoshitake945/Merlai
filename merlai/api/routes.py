@@ -124,17 +124,11 @@ async def generate_music(
                 success=True,
             )
         except Exception as e:
-            return GenerationResponse(
-                success=False,
-                error_message=str(e),
-                duration=0.0,
-            )
+            raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException as e:
+        raise
     except Exception as e:
-        return GenerationResponse(
-            success=False,
-            error_message=str(e),
-            duration=0.0,
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # AI Model Management Endpoints
@@ -390,7 +384,7 @@ async def get_plugin_parameters(
             return result
         else:
             raise HTTPException(
-                status_code=400, detail=f"Plugin {plugin_name} is not loaded"
+                status_code=404, detail=f"Plugin {plugin_name} not found"
             )
     except HTTPException:
         raise
@@ -451,7 +445,7 @@ async def get_plugin_presets(
             return result
         else:
             raise HTTPException(
-                status_code=400, detail=f"Plugin {plugin_name} is not loaded"
+                status_code=404, detail=f"Plugin {plugin_name} not found"
             )
     except HTTPException:
         raise

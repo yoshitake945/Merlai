@@ -111,18 +111,6 @@ async def global_exception_handler(request: Any, exc: Exception) -> JSONResponse
     )
 
 
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Any, exc: HTTPException) -> JSONResponse:
-    """HTTP exception handler."""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "error": exc.detail,
-            "type": exc.__class__.__name__,
-        },
-    )
-
-
 if __name__ == "__main__":
     uvicorn.run(
         "merlai.api.main:app",

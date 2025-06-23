@@ -426,17 +426,17 @@ class TestAPIEndpoints:
     
     def test_generate_music_empty_string(self):
         """Test music generation with empty string request."""
-        response = self.client.post("/api/v1/generate", data="")
+        response = self.client.post("/api/v1/generate", data={})
         assert response.status_code == 422
     
     def test_generate_music_content_type_mismatch(self):
         """Test music generation with wrong content type."""
-        response = self.client.post("/api/v1/generate", data="not json", headers={"Content-Type": "text/plain"})
+        response = self.client.post("/api/v1/generate", data={"not": "json"}, headers={"Content-Type": "text/plain"})
         assert response.status_code == 422
     
     def test_generate_music_missing_content_type(self):
         """Test music generation with missing content type."""
-        response = self.client.post("/api/v1/generate", data='{"melody": []}')
+        response = self.client.post("/api/v1/generate", data={"melody": []}, headers={"Content-Type": "application/json"})
         # Should still work as JSON is inferred
         assert response.status_code in [200, 400, 422, 500]  # Allow 500 for invalid data
 
@@ -939,19 +939,19 @@ class TestAPIComprehensiveErrorCases:
     
     def test_generate_music_empty_string(self):
         """Test music generation with empty string request."""
-        response = self.client.post("/api/v1/generate", data="")
+        response = self.client.post("/api/v1/generate", data={})
         assert response.status_code == 422
     
     def test_generate_music_content_type_mismatch(self):
         """Test music generation with wrong content type."""
-        response = self.client.post("/api/v1/generate", data="not json", headers={"Content-Type": "text/plain"})
+        response = self.client.post("/api/v1/generate", data={"not": "json"}, headers={"Content-Type": "text/plain"})
         assert response.status_code == 422
     
     def test_generate_music_missing_content_type(self):
         """Test music generation with missing content type."""
-        response = self.client.post("/api/v1/generate", data='{"melody": []}')
+        response = self.client.post("/api/v1/generate", data={"melody": []}, headers={"Content-Type": "application/json"})
         # Should still work as JSON is inferred
-        assert response.status_code in [200, 400, 422, 500]  # Allow 500 for invalid data 
+        assert response.status_code in [200, 400, 422, 500]  # Allow 500 for invalid data
 
 
 class TestAPIConfig:
