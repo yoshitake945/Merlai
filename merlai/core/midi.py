@@ -2,10 +2,12 @@
 MIDI generation and processing functionality.
 """
 
-from typing import List
 import io
+from typing import List
+
 from midiutil import MIDIFile
-from .types import Note, Track, Song
+
+from .types import Note, Song, Track
 
 
 class MIDIGenerator:
@@ -20,7 +22,7 @@ class MIDIGenerator:
         """Create MIDI file from song data."""
         if song.tempo <= 0:
             raise ValueError(f"tempo must be positive, got {song.tempo}")
-        
+
         midi = MIDIFile(len(song.tracks), deinterleave=False)
 
         # Set tempo
@@ -35,11 +37,13 @@ class MIDIGenerator:
         midi.writeFile(midi_bytes)
         return midi_bytes.getvalue()
 
-    def create_midi_from_notes(self, notes: List[Note], tempo: int = 120) -> bytes:
+    def create_midi_from_notes(
+        self, notes: List[Note], tempo: int = 120
+    ) -> bytes:
         """Create MIDI file from list of notes."""
         if tempo <= 0:
             raise ValueError(f"tempo must be positive, got {tempo}")
-        
+
         midi = MIDIFile(1, deinterleave=False)
         midi.addTempo(0, 0, tempo)
 
@@ -93,7 +97,9 @@ class MIDIGenerator:
         midi.writeFile(midi_bytes)
         return midi_bytes.getvalue()
 
-    def quantize_notes(self, notes: List[Note], grid_size: float = 0.25) -> List[Note]:
+    def quantize_notes(
+        self, notes: List[Note], grid_size: float = 0.25
+    ) -> List[Note]:
         """Quantize notes to a grid."""
         if grid_size <= 0:
             raise ValueError(f"grid_size must be positive, got {grid_size}")

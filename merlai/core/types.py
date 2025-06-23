@@ -2,8 +2,9 @@
 Core data types for music generation.
 """
 
+from dataclasses import dataclass
 from typing import List, Optional
-from dataclasses import dataclass, field
+
 from pydantic import BaseModel
 
 
@@ -16,19 +17,27 @@ class Note:
     duration: float  # Duration in seconds
     start_time: float  # Start time in seconds
     channel: int = 0  # MIDI channel (0-15)
-    
+
     def __post_init__(self):
         """Validate note parameters after initialization."""
         if not 0 <= self.pitch <= 127:
-            raise ValueError(f"Pitch must be between 0 and 127, got {self.pitch}")
+            raise ValueError(
+                f"Pitch must be between 0 and 127, got {self.pitch}"
+            )
         if not 0 <= self.velocity <= 127:
-            raise ValueError(f"Velocity must be between 0 and 127, got {self.velocity}")
+            raise ValueError(
+                f"Velocity must be between 0 and 127, got {self.velocity}"
+            )
         if self.duration <= 0:
             raise ValueError(f"Duration must be positive, got {self.duration}")
         if self.start_time < 0:
-            raise ValueError(f"Start time must be non-negative, got {self.start_time}")
+            raise ValueError(
+                f"Start time must be non-negative, got {self.start_time}"
+            )
         if not 0 <= self.channel <= 15:
-            raise ValueError(f"Channel must be between 0 and 15, got {self.channel}")
+            raise ValueError(
+                f"Channel must be between 0 and 15, got {self.channel}"
+            )
 
 
 @dataclass

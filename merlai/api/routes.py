@@ -4,12 +4,27 @@ API routes for Merlai music generation service.
 
 import base64
 from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException
-from ..core.music import MusicGenerator
+
+from ..core.ai_models import (
+    ModelConfig,
+    GenerationRequest as AIModelGenerationRequest,
+    GenerationResponse as AIModelGenerationResponse,
+)
 from ..core.midi import MIDIGenerator, Track
+from ..core.music import MusicGenerator
 from ..core.plugins import PluginManager
-from ..core.types import Note, Chord, Harmony, Melody, Bass, Drums, GenerationRequest as LegacyGenerationRequest, GenerationResponse as LegacyGenerationResponse
-from ..core.ai_models import ModelConfig, ModelType, GenerationRequest, GenerationResponse
+from ..core.types import (
+    Bass,
+    Chord,
+    Drums,
+    Harmony,
+    Melody,
+    Note,
+    GenerationRequest,
+    GenerationResponse,
+)
 
 router = APIRouter()
 
@@ -35,21 +50,21 @@ def get_plugin_manager() -> PluginManager:
     return app.state.plugin_manager  # type: ignore
 
 
-@router.post("/generate", response_model=LegacyGenerationResponse)
+@router.post("/generate", response_model=GenerationResponse)
 async def generate_music(
-    request: LegacyGenerationRequest,
+    request: GenerationRequest,
     music_generator: MusicGenerator = Depends(get_music_generator),
     midi_generator: MIDIGenerator = Depends(get_midi_generator),
-) -> LegacyGenerationResponse:
+) -> GenerationResponse:
     """Generate complementary music parts from a melody."""
     try:
         # Validate melody is not empty
         if not request.melody:
             raise HTTPException(
-                status_code=422, 
-                detail="Melody cannot be empty. Please provide at least one note."
+                status_code=422,
+                detail="Melody cannot be empty. Please provide at least one note.",  # noqa: E501
             )
-        
+
         # Convert request to internal format
         melody_notes = []
         for note_data in request.melody:
@@ -61,9 +76,9 @@ async def generate_music(
             )
             melody_notes.append(note)
 
-        from ..core.types import Melody
-
-        melody = Melody(notes=melody_notes, tempo=request.tempo, key=request.key)
+        melody = Melody(
+            notes=melody_notes, tempo=request.tempo, key=request.key
+        )
 
         # Generate complementary parts
         harmony: Optional[Harmony] = None
@@ -83,7 +98,9 @@ async def generate_music(
         tracks: List[Track] = []
 
         # Add melody track
-        tracks.append(Track(name="Melody", notes=melody.notes, channel=0, instrument=0))
+        tracks.append(
+            Track(name="Melody", notes=melody.notes, channel=0, instrument=0)
+        )
 
         # Add generated tracks
         if harmony is not None:
@@ -93,16 +110,19 @@ async def generate_music(
                     chord_notes = _chord_to_notes(chord)
                     harmony_notes.extend(chord_notes)
             tracks.append(
-                Track(name="Harmony", notes=harmony_notes, channel=1, instrument=48)
+                Track(
+                    name="Harmony",
+                    notes=harmony_notes,
+                    channel=1,
+                    instrument=48,
+                )
             )
 
         if bass_line is not None:
             # Convert Bass object to list of notes
             bass_notes = bass_line.notes
             tracks.append(
-                Track(
-                    name="Bass", notes=bass_notes, channel=2, instrument=32
-                )
+                Track(name="Bass", notes=bass_notes, channel=2, instrument=32)
             )
 
         if drums is not None:
@@ -123,22 +143,27 @@ async def generate_music(
         # Extract harmony chords for response
         harmony_chords = harmony.chords if harmony is not None else None
 
-        return LegacyGenerationResponse(
+        return GenerationResponse(
             harmony=harmony_chords,
             bass_line=bass_line.notes if bass_line is not None else None,
             drums=drums.notes if drums is not None else None,
-            midi_data=base64.b64encode(midi_data).decode('utf-8') if midi_data else None,
+            midi_data=(
+                base64.b64encode(midi_data).decode("utf-8") if midi_data else None  # noqa: E501
+            ),
             duration=4.0,  # Calculate actual duration
             success=True,
-        )
+        )  # noqa: E501
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Generation failed: {str(e)}"
+        )
 
 
 # AI Model Management Endpoints
+
 
 @router.post("/ai/models/register")
 async def register_ai_model(
@@ -152,17 +177,16 @@ async def register_ai_model(
             return {
                 "message": f"AI model {config.name} registered successfully",
                 "model_name": config.name,
-                "model_type": config.type.value
+                "model_type": config.type.value,
             }
         else:
             raise HTTPException(
-                status_code=400, 
-                detail=f"Failed to register AI model {config.name}"
+                status_code=400,
+                detail=f"Failed to register AI model {config.name}",
             )
     except Exception as e:
         raise HTTPException(
-            status_code=500, 
-            detail=f"Failed to register AI model: {str(e)}"
+            status_code=500, detail=f"Failed to register AI model: {str(e)}"
         )
 
 
@@ -177,17 +201,15 @@ async def set_default_ai_model(
         if success:
             return {
                 "message": f"Default AI model set to {model_name}",
-                "default_model": model_name
+                "default_model": model_name,
             }
         else:
             raise HTTPException(
-                status_code=404, 
-                detail=f"AI model {model_name} not found"
+                status_code=404, detail=f"AI model {model_name} not found"
             )
     except Exception as e:
         raise HTTPException(
-            status_code=500, 
-            detail=f"Failed to set default AI model: {str(e)}"
+            status_code=500, detail=f"Failed to set default AI model: {str(e)}"
         )
 
 
@@ -201,21 +223,20 @@ async def list_ai_models(
         return {
             "models": models,
             "count": len(models),
-            "ai_models_enabled": music_generator.use_ai_models
+            "ai_models_enabled": music_generator.use_ai_models,
         }
     except Exception as e:
         raise HTTPException(
-            status_code=500, 
-            detail=f"Failed to list AI models: {str(e)}"
+            status_code=500, detail=f"Failed to list AI models: {str(e)}"
         )
 
 
 @router.post("/ai/generate/harmony")
 async def generate_harmony_ai(
-    request: LegacyGenerationRequest,
+    request: AIModelGenerationRequest,
     model_name: Optional[str] = None,
     music_generator: MusicGenerator = Depends(get_music_generator),
-) -> LegacyGenerationResponse:
+) -> AIModelGenerationResponse:
     """Generate harmony using AI models."""
     try:
         response = music_generator.ai_model_manager.generate_harmony(
@@ -224,17 +245,16 @@ async def generate_harmony_ai(
         return response
     except Exception as e:
         raise HTTPException(
-            status_code=500, 
-            detail=f"AI harmony generation failed: {str(e)}"
+            status_code=500, detail=f"AI harmony generation failed: {str(e)}"
         )
 
 
 @router.post("/ai/generate/bass")
 async def generate_bass_ai(
-    request: LegacyGenerationRequest,
+    request: AIModelGenerationRequest,
     model_name: Optional[str] = None,
     music_generator: MusicGenerator = Depends(get_music_generator),
-) -> LegacyGenerationResponse:
+) -> AIModelGenerationResponse:
     """Generate bass using AI models."""
     try:
         response = music_generator.ai_model_manager.generate_bass(
@@ -243,17 +263,16 @@ async def generate_bass_ai(
         return response
     except Exception as e:
         raise HTTPException(
-            status_code=500, 
-            detail=f"AI bass generation failed: {str(e)}"
+            status_code=500, detail=f"AI bass generation failed: {str(e)}"
         )
 
 
 @router.post("/ai/generate/drums")
 async def generate_drums_ai(
-    request: LegacyGenerationRequest,
+    request: AIModelGenerationRequest,
     model_name: Optional[str] = None,
     music_generator: MusicGenerator = Depends(get_music_generator),
-) -> LegacyGenerationResponse:
+) -> AIModelGenerationResponse:
     """Generate drums using AI models."""
     try:
         response = music_generator.ai_model_manager.generate_drums(
@@ -262,8 +281,7 @@ async def generate_drums_ai(
         return response
     except Exception as e:
         raise HTTPException(
-            status_code=500, 
-            detail=f"AI drum generation failed: {str(e)}"
+            status_code=500, detail=f"AI drum generation failed: {str(e)}"
         )
 
 
@@ -272,7 +290,7 @@ async def analyze_music_ai(
     midi_data: bytes,
     model_name: Optional[str] = None,
     music_generator: MusicGenerator = Depends(get_music_generator),
-) -> LegacyGenerationResponse:
+) -> AIModelGenerationResponse:
     """Analyze music using AI models."""
     try:
         response = music_generator.ai_model_manager.analyze_music(
@@ -281,12 +299,12 @@ async def analyze_music_ai(
         return response
     except Exception as e:
         raise HTTPException(
-            status_code=500, 
-            detail=f"AI music analysis failed: {str(e)}"
+            status_code=500, detail=f"AI music analysis failed: {str(e)}"
         )
 
 
 # Plugin Management Endpoints
+
 
 @router.get("/plugins")
 async def list_plugins(
@@ -311,7 +329,9 @@ async def list_plugins(
             "count": len(plugins),
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list plugins: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to list plugins: {str(e)}"
+        )
 
 
 @router.get("/plugins/recommendations")
@@ -322,7 +342,9 @@ async def get_plugin_recommendations(
 ) -> dict:
     """Get plugin recommendations for a style and instrument."""
     try:
-        recommendations = plugin_manager.get_plugin_recommendations(style, instrument)
+        recommendations = plugin_manager.get_plugin_recommendations(
+            style, instrument
+        )
         return {
             "style": style,
             "instrument": instrument,
@@ -345,7 +367,8 @@ async def get_plugin_recommendations(
 
 @router.post("/plugins/{plugin_name}/load")
 async def load_plugin(
-    plugin_name: str, plugin_manager: PluginManager = Depends(get_plugin_manager)
+    plugin_name: str,
+    plugin_manager: PluginManager = Depends(get_plugin_manager),
 ) -> dict:
     """Load a plugin."""
     try:
@@ -357,12 +380,15 @@ async def load_plugin(
                 status_code=404, detail=f"Plugin {plugin_name} not found"
             )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to load plugin: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to load plugin: {str(e)}"
+        )
 
 
 @router.get("/plugins/{plugin_name}/parameters")
 async def get_plugin_parameters(
-    plugin_name: str, plugin_manager: PluginManager = Depends(get_plugin_manager)
+    plugin_name: str,
+    plugin_manager: PluginManager = Depends(get_plugin_manager),
 ) -> dict:
     """Get plugin parameters."""
     try:
@@ -372,7 +398,7 @@ async def get_plugin_parameters(
             raise HTTPException(
                 status_code=404, detail=f"Plugin {plugin_name} not found"
             )
-        
+
         parameters = plugin_manager.get_plugin_parameters(plugin_name)
         if parameters is not None:
             return {
@@ -387,7 +413,8 @@ async def get_plugin_parameters(
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"Failed to get plugin parameters: {str(e)}"
+            status_code=500,
+            detail=f"Failed to get plugin parameters: {str(e)}",  # noqa: E501
         )
 
 
@@ -400,10 +427,12 @@ async def set_plugin_parameter(
 ) -> dict:
     """Set a plugin parameter."""
     try:
-        success = plugin_manager.set_plugin_parameter(plugin_name, parameter_name, value)
+        success = plugin_manager.set_plugin_parameter(
+            plugin_name, parameter_name, value
+        )
         if success:
             return {
-                "message": f"Parameter {parameter_name} set to {value} for plugin {plugin_name}"
+                "message": f"Parameter {parameter_name} set to {value} for plugin {plugin_name}"  # noqa: E501
             }
         else:
             raise HTTPException(
@@ -417,7 +446,8 @@ async def set_plugin_parameter(
 
 @router.get("/plugins/{plugin_name}/presets")
 async def get_plugin_presets(
-    plugin_name: str, plugin_manager: PluginManager = Depends(get_plugin_manager)
+    plugin_name: str,
+    plugin_manager: PluginManager = Depends(get_plugin_manager),
 ) -> dict:
     """Get plugin presets."""
     try:
@@ -427,7 +457,7 @@ async def get_plugin_presets(
             raise HTTPException(
                 status_code=404, detail=f"Plugin {plugin_name} not found"
             )
-        
+
         presets = plugin_manager.get_plugin_presets(plugin_name)
         if presets is not None:
             return {
@@ -448,7 +478,8 @@ async def get_plugin_presets(
 
 @router.get("/plugins/{plugin_name}")
 async def get_plugin_info(
-    plugin_name: str, plugin_manager: PluginManager = Depends(get_plugin_manager)
+    plugin_name: str,
+    plugin_manager: PluginManager = Depends(get_plugin_manager),
 ) -> dict:
     """Get detailed plugin information."""
     try:
@@ -462,7 +493,7 @@ async def get_plugin_info(
                 "category": plugin_info.category,
                 "file_path": plugin_info.file_path,
                 "is_loaded": plugin_info.is_loaded,
-                "description": getattr(plugin_info, 'description', ''),
+                "description": getattr(plugin_info, "description", ""),
                 "parameters": plugin_info.parameters,
                 "presets": plugin_info.presets,
             }
@@ -493,7 +524,7 @@ async def get_config() -> dict:
         "batch_size": 4,
         "top_p": 0.9,
         "top_k": 50,
-        "repetition_penalty": 1.1
+        "repetition_penalty": 1.1,
     }
 
 
@@ -502,39 +533,53 @@ async def update_config(config_update: dict) -> dict:
     """Update configuration."""
     try:
         # Validate config update
-        valid_keys = {"temperature", "max_length", "batch_size", "top_p", "top_k", "repetition_penalty"}
+        valid_keys = {
+            "temperature",
+            "max_length",
+            "batch_size",
+            "top_p",
+            "top_k",
+            "repetition_penalty",
+        }
         invalid_keys = set(config_update.keys()) - valid_keys
-        
+
         if invalid_keys:
             raise HTTPException(
-                status_code=400, 
-                detail=f"Invalid configuration keys: {list(invalid_keys)}"
+                status_code=400,
+                detail=f"Invalid configuration keys: {list(invalid_keys)}",
             )
-        
+
         # Validate types
         for key, value in config_update.items():
-            if key in ["temperature", "top_p", "repetition_penalty"] and not isinstance(value, (int, float)):
+            if key in [
+                "temperature",
+                "top_p",
+                "repetition_penalty",
+            ] and not isinstance(value, (int, float)):
                 raise HTTPException(
-                    status_code=422, 
-                    detail=f"Invalid type for {key}: expected number, got {type(value).__name__}"
+                    status_code=422,
+                    detail=f"Invalid type for {key}: expected number, got {type(value).__name__}",  # noqa: E501
                 )
-            elif key in ["max_length", "batch_size", "top_k"] and not isinstance(value, int):
+            elif key in [
+                "max_length",
+                "batch_size",
+                "top_k",
+            ] and not isinstance(value, int):
                 raise HTTPException(
-                    status_code=422, 
-                    detail=f"Invalid type for {key}: expected integer, got {type(value).__name__}"
+                    status_code=422,
+                    detail=f"Invalid type for {key}: expected integer, got {type(value).__name__}",  # noqa: E501
                 )
-        
+
         return {
             "message": "Configuration updated successfully",
-            "updated_config": config_update
+            "updated_config": config_update,
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=500, 
-            detail=f"Failed to update configuration: {str(e)}"
+            status_code=500, detail=f"Failed to update configuration: {str(e)}"
         )
 
 
