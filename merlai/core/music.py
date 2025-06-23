@@ -8,6 +8,7 @@ from typing import List, Optional
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+<<<<<<< HEAD
 from .ai_models import (
     AIModelManager,
     GenerationRequest,
@@ -15,6 +16,10 @@ from .ai_models import (
     ModelType,
 )
 from .types import Bass, Chord, Drums, Harmony, Melody, Note
+=======
+from .types import Chord, Harmony, Melody, Note, Bass, Drums
+from .ai_models import AIModelManager, ModelConfig, ModelType, GenerationRequest
+>>>>>>> origin/dev
 
 
 @dataclass
@@ -59,23 +64,35 @@ class MusicGenerator:
             hf_config = ModelConfig(
                 name="default-hf",
                 type=ModelType.HUGGINGFACE,
+<<<<<<< HEAD
                 model_path=self.model_path,
+=======
+                model_path=self.model_path
+>>>>>>> origin/dev
             )
             self.ai_model_manager.register_model(hf_config)
             self.ai_model_manager.set_default_model("default-hf")
         except Exception as e:
             # Fallback to legacy mode if AI models fail to initialize
             self.use_ai_models = False
+<<<<<<< HEAD
             print(
                 f"Warning: Failed to initialize AI models, falling back to legacy mode: {e}"  # noqa: E501
             )
+=======
+            print(f"Warning: Failed to initialize AI models, falling back to legacy mode: {e}")
+>>>>>>> origin/dev
 
     def load_model(self) -> None:
         """Load the AI model for music generation."""
         if self.use_ai_models and self.ai_model_manager:
             # AI models are handled by AIModelManager
             return
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> origin/dev
         # Legacy model loading
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
@@ -84,6 +101,7 @@ class MusicGenerator:
                 self.model.to(self.device)  # type: ignore
                 self.model.eval()  # type: ignore
         except Exception as e:
+<<<<<<< HEAD
             print(e)
             raise RuntimeError(f"Failed to load model: {e}")
 
@@ -93,6 +111,11 @@ class MusicGenerator:
         style: str = "pop",
         model_name: Optional[str] = None,
     ) -> Harmony:
+=======
+            raise RuntimeError(f"Failed to load model: {e}")
+
+    def generate_harmony(self, melody: Melody, style: str = "pop", model_name: Optional[str] = None) -> Harmony:
+>>>>>>> origin/dev
         """Generate harmony based on the main melody."""
         if self.use_ai_models and self.ai_model_manager:
             # Use AI model manager
@@ -104,6 +127,7 @@ class MusicGenerator:
                 generation_type="harmony",
                 temperature=self.config.temperature,
                 top_p=self.config.top_p,
+<<<<<<< HEAD
                 max_length=self.config.max_length,
             )
 
@@ -112,19 +136,35 @@ class MusicGenerator:
                     model_name, request
                 )
 
+=======
+                max_length=self.config.max_length
+            )
+            
+            try:
+                response = self.ai_model_manager.generate_harmony(model_name, request)
+                
+>>>>>>> origin/dev
                 if response.success and response.result:
                     return response.result
                 else:
                     # Fallback to legacy method if AI model fails
+<<<<<<< HEAD
                     print(
                         f"Warning: AI model failed, using legacy method: {response.error_message}"  # noqa: E501
                     )
+=======
+                    print(f"Warning: AI model failed, using legacy method: {response.error_message}")
+>>>>>>> origin/dev
                     return self._generate_harmony_legacy(melody, style)
             except Exception as e:
                 # Fallback to legacy method on any exception
                 print(f"Warning: AI model exception, using legacy method: {e}")
                 return self._generate_harmony_legacy(melody, style)
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> origin/dev
         # Legacy method
         return self._generate_harmony_legacy(melody, style)
 
@@ -144,8 +184,13 @@ class MusicGenerator:
             with torch.no_grad():
                 if self.tokenizer is None or self.model is None:
                     return self._generate_basic_harmony(melody, style)
+<<<<<<< HEAD
 
                 inputs = self.tokenizer.encode(melody_tokens, return_tensors="pt").to(  # type: ignore # noqa: E501
+=======
+                    
+                inputs = self.tokenizer.encode(melody_tokens, return_tensors="pt").to(  # type: ignore
+>>>>>>> origin/dev
                     self.device
                 )
 
@@ -163,6 +208,7 @@ class MusicGenerator:
             # Decode and convert to harmony
             if self.tokenizer is None:
                 return self._generate_basic_harmony(melody, style)
+<<<<<<< HEAD
             harmony_tokens = self.tokenizer.decode(outputs[0], skip_special_tokens=True)  # type: ignore # noqa: E501
             return self._tokens_to_harmony(harmony_tokens, style)
 
@@ -171,6 +217,14 @@ class MusicGenerator:
             print(
                 f"Warning: AI model failed, using basic harmony generation: {e}"  # noqa: E501
             )
+=======
+            harmony_tokens = self.tokenizer.decode(outputs[0], skip_special_tokens=True)  # type: ignore
+            return self._tokens_to_harmony(harmony_tokens, style)
+            
+        except Exception as e:
+            # Fallback to basic harmony generation on any error
+            print(f"Warning: AI model failed, using basic harmony generation: {e}")
+>>>>>>> origin/dev
             return self._generate_basic_harmony(melody, style)
 
     def _generate_basic_harmony(self, melody: Melody, style: str) -> Harmony:
@@ -186,6 +240,7 @@ class MusicGenerator:
                 start_time=note.start_time,
             )
             chords.append(chord)
+<<<<<<< HEAD
 
         return Harmony(chords=chords, style=style, key=melody.key)
 
@@ -195,6 +250,16 @@ class MusicGenerator:
         harmony: Harmony,
         model_name: Optional[str] = None,
     ) -> Bass:
+=======
+        
+        return Harmony(
+            chords=chords,
+            style=style,
+            key=melody.key
+        )
+
+    def generate_bass_line(self, melody: Melody, harmony: Harmony, model_name: Optional[str] = None) -> Bass:
+>>>>>>> origin/dev
         """Generate bass line based on melody and harmony."""
         if self.use_ai_models and self.ai_model_manager:
             # Use AI model manager
@@ -205,15 +270,24 @@ class MusicGenerator:
                 tempo=melody.tempo,
                 generation_type="bass",
                 temperature=self.config.temperature,
+<<<<<<< HEAD
                 top_p=self.config.top_p,
             )
 
             response = self.ai_model_manager.generate_bass(model_name, request)
 
+=======
+                top_p=self.config.top_p
+            )
+            
+            response = self.ai_model_manager.generate_bass(model_name, request)
+            
+>>>>>>> origin/dev
             if response.success and response.result:
                 return response.result
             else:
                 # Fallback to legacy method if AI model fails
+<<<<<<< HEAD
                 print(
                     f"Warning: AI model failed, using legacy method: {response.error_message}"  # noqa: E501
                 )
@@ -225,6 +299,15 @@ class MusicGenerator:
     def _generate_bass_line_legacy(
         self, melody: Melody, harmony: Harmony
     ) -> Bass:
+=======
+                print(f"Warning: AI model failed, using legacy method: {response.error_message}")
+                return self._generate_bass_line_legacy(melody, harmony)
+        
+        # Legacy method
+        return self._generate_bass_line_legacy(melody, harmony)
+
+    def _generate_bass_line_legacy(self, melody: Melody, harmony: Harmony) -> Bass:
+>>>>>>> origin/dev
         """Legacy bass line generation method."""
         # Implementation for bass line generation
         bass_notes = []
@@ -241,12 +324,16 @@ class MusicGenerator:
 
         return Bass(notes=bass_notes)
 
+<<<<<<< HEAD
     def generate_drums(
         self,
         melody: Melody,
         tempo: int = 120,
         model_name: Optional[str] = None,
     ) -> Drums:
+=======
+    def generate_drums(self, melody: Melody, tempo: int = 120, model_name: Optional[str] = None) -> Drums:
+>>>>>>> origin/dev
         """Generate drum pattern based on melody and tempo."""
         if self.use_ai_models and self.ai_model_manager:
             # Use AI model manager
@@ -257,6 +344,7 @@ class MusicGenerator:
                 tempo=tempo,
                 generation_type="drums",
                 temperature=self.config.temperature,
+<<<<<<< HEAD
                 top_p=self.config.top_p,
             )
 
@@ -264,15 +352,28 @@ class MusicGenerator:
                 model_name, request
             )
 
+=======
+                top_p=self.config.top_p
+            )
+            
+            response = self.ai_model_manager.generate_drums(model_name, request)
+            
+>>>>>>> origin/dev
             if response.success and response.result:
                 return response.result
             else:
                 # Fallback to legacy method if AI model fails
+<<<<<<< HEAD
                 print(
                     f"Warning: AI model failed, using legacy method: {response.error_message}"  # noqa: E501
                 )
                 return self._generate_drums_legacy(melody, tempo)
 
+=======
+                print(f"Warning: AI model failed, using legacy method: {response.error_message}")
+                return self._generate_drums_legacy(melody, tempo)
+        
+>>>>>>> origin/dev
         # Legacy method
         return self._generate_drums_legacy(melody, tempo)
 
@@ -330,21 +431,33 @@ class MusicGenerator:
         """Register a new AI model."""
         if not self.use_ai_models or not self.ai_model_manager:
             return False
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> origin/dev
         return self.ai_model_manager.register_model(config)
 
     def set_default_ai_model(self, model_name: str) -> bool:
         """Set the default AI model."""
         if not self.use_ai_models or not self.ai_model_manager:
             return False
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> origin/dev
         return self.ai_model_manager.set_default_model(model_name)
 
     def list_ai_models(self) -> List[str]:
         """List available AI models."""
         if not self.use_ai_models or not self.ai_model_manager:
             return []
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> origin/dev
         return self.ai_model_manager.list_models()
 
     def _melody_to_tokens(self, melody: Melody) -> str:

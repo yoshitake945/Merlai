@@ -4,7 +4,6 @@ Core data types for music generation.
 
 from dataclasses import dataclass
 from typing import List, Optional
-
 from pydantic import BaseModel
 
 
@@ -39,6 +38,13 @@ class Note:
                 f"Channel must be between 0 and 15, got {self.channel}"
             )
 
+    def __str__(self):
+        """Return a string representation of the note."""
+        return f"Note(pitch={self.pitch}, velocity={self.velocity}, duration={self.duration}, start_time={self.start_time}, channel={self.channel})"
+
+    def __repr__(self):
+        """Return a string representation of the note."""
+        return self.__str__()
 
 @dataclass
 class Chord:

@@ -2,11 +2,19 @@
 Plugin management system for sound plugins.
 """
 
+<<<<<<< HEAD
 import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+=======
+import os
+import json
+from typing import List, Dict, Optional, Any
+from dataclasses import dataclass, field
+from pathlib import Path
+>>>>>>> origin/dev
 
 from pydantic import BaseModel
 
@@ -105,7 +113,13 @@ class PluginManager:
 
         for plugin in self.plugins.values():
             score = 0
+<<<<<<< HEAD
             plugin_text = f"{plugin.name} {plugin.category} {plugin.manufacturer}".lower()  # noqa: E501
+=======
+            plugin_text = (
+                f"{plugin.name} {plugin.category} {plugin.manufacturer}".lower()
+            )
+>>>>>>> origin/dev
 
             for keyword in keywords:
                 if keyword.lower() in plugin_text:
@@ -292,20 +306,29 @@ class PluginManager:
     def create_midi_file(self, song):
         """Create MIDI file from song data using MIDIGenerator."""
         from .midi import MIDIGenerator
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/dev
         generator = MIDIGenerator()
         return generator.create_midi_file(song)
 
     def create_midi_from_notes(self, notes, tempo=120):
         """Create MIDI file from notes using MIDIGenerator."""
         from .midi import MIDIGenerator
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/dev
         generator = MIDIGenerator()
         return generator.create_midi_from_notes(notes, tempo)
 
     def merge_tracks(self, tracks):
         """Merge tracks into a MIDI file using MIDIGenerator."""
         from .midi import MIDIGenerator
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/dev
         generator = MIDIGenerator()
         return generator.merge_tracks(tracks)
