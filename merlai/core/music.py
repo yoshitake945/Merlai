@@ -3,11 +3,10 @@ Music generation core functionality.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Any
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers.modeling_utils import PreTrainedModel
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 from .ai_models import AIModelManager, GenerationRequest, ModelConfig, ModelType
@@ -35,7 +34,7 @@ class MusicGenerator:
         """Initialize the music generator."""
         self.model_path = model_path or "microsoft/DialoGPT-medium"
         self.tokenizer: Optional[PreTrainedTokenizerBase] = None
-        self.model: Optional[PreTrainedModel] = None
+        self.model: Any = None
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.config = GenerationConfig()
 
@@ -76,7 +75,7 @@ class MusicGenerator:
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
             self.model = AutoModelForCausalLM.from_pretrained(self.model_path)
             if self.model is not None:
-                self.model.to(self.device)  # type: ignore[attr-defined, arg-type]
+                self.model.to(self.device)
                 self.model.eval()
         except Exception as e:
             print(e)
@@ -103,9 +102,7 @@ class MusicGenerator:
             )
 
             try:
-                response = self.ai_model_manager.generate_harmony(
-                    model_name, request
-                )
+                response = self.ai_model_manager.generate_harmony(model_name, request)
 
                 if (
                     response.success
@@ -145,7 +142,7 @@ class MusicGenerator:
                     repetition_penalty=self.config.repetition_penalty,
                     pad_token_id=self.tokenizer.eos_token_id,
                     do_sample=True,
-                )  # type: ignore[attr-defined, operator]
+                )
 
             # Decode and convert to harmony
             if self.tokenizer is None:
