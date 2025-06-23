@@ -115,14 +115,13 @@ class MusicGenerator:
                 print(f"Warning: AI model exception, using legacy method: {e}")
         return self._generate_harmony_legacy(melody, style)
 
-    def _generate_harmony_legacy(self, melody: Melody, style: str) -> Harmony:
-        """Legacy harmony generation method."""
+    def _generate_harmony_legacy(self, melody: Melody, style: str) -> Harmony:  # type: ignore
         try:
             if self.model is None or self.tokenizer is None:
                 self.load_model()
                 if self.model is None or self.tokenizer is None:
                     # Fallback to basic harmony generation without AI
-                    return self._generate_basic_harmony(melody, style)
+                    return self._generate_basic_harmony(melody, style)  # type: ignore[unreachable]
 
             # Convert melody to token sequence
             melody_tokens = self._melody_to_tokens(melody)
@@ -130,7 +129,7 @@ class MusicGenerator:
             # Generate harmony tokens
             with torch.no_grad():
                 if self.tokenizer is None or self.model is None:
-                    return self._generate_basic_harmony(melody, style)
+                    return self._generate_basic_harmony(melody, style)  # type: ignore[unreachable]
                 inputs = self.tokenizer.encode(melody_tokens, return_tensors="pt")
 
                 outputs = self.model.generate(
@@ -146,7 +145,7 @@ class MusicGenerator:
 
             # Decode and convert to harmony
             if self.tokenizer is None:
-                return self._generate_basic_harmony(melody, style)
+                return self._generate_basic_harmony(melody, style)  # type: ignore[unreachable]
             harmony_tokens = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             return self._tokens_to_harmony(harmony_tokens, style)
 

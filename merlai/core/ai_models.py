@@ -145,7 +145,7 @@ class HuggingFaceModel(AIModelInterface):
             self.tokenizer = None
             self.model = None
 
-    def is_available(self) -> bool:
+    def is_available(self) -> bool:  # type: ignore
         """Check if the model is available."""
         return self.tokenizer is not None and self.model is not None
 
