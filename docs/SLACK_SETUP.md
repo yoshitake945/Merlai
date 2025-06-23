@@ -33,10 +33,10 @@ This document explains how to set up Slack notifications for the Merlai CI/CD pi
 
 ### 3. Configure Channel (Optional)
 
-The default channel is set to `#merlai-ci`. To change this:
+The default channel is set to `#ci-cd`. To change this:
 
 1. Edit `.github/workflows/ci.yml`
-2. Find the `channel: '#merlai-ci'` line in both notification steps
+2. Find the `channel: '#ci-cd'` line in both notification steps
 3. Replace with your desired channel name
 
 ## Notification Details
