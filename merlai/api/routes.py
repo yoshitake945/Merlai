@@ -127,13 +127,11 @@ async def generate_music(
             )
         except Exception:
             raise HTTPException(
-                status_code=500,
-                detail="An error occurred during music generation."
+                status_code=500, detail="An error occurred during music generation."
             )
     except Exception:
         raise HTTPException(
-            status_code=500,
-            detail="An error occurred during music generation."
+            status_code=500, detail="An error occurred during music generation."
         )
 
 
