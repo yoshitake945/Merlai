@@ -99,7 +99,7 @@ async def readiness_check() -> dict[str, str]:
 
 
 @app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Global exception handler."""
     return JSONResponse(
         status_code=500,
