@@ -462,6 +462,11 @@ class AIModelManager:
             bool: Registration success if True
         """
         try:
+            # Check if config is None or invalid
+            if config is None:
+                logger.error("Cannot register model: config is None")
+                return False
+            
             if config.name in self.models:
                 logger.warning(f"Model {config.name} already registered")
                 return False
@@ -480,7 +485,8 @@ class AIModelManager:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to register model {config.name}: {e}")
+            model_name = config.name if config is not None else "unknown"
+            logger.error(f"Failed to register model {model_name}: {e}")
             return False
 
     def remove_model(self, name: str) -> bool:
