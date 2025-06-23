@@ -76,7 +76,7 @@ class MusicGenerator:
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
             self.model = AutoModelForCausalLM.from_pretrained(self.model_path)
             if self.model is not None:
-                self.model.to(self.device)  # type: ignore[attr-defined]
+                self.model.to(self.device)  # type: ignore[attr-defined, arg-type]
                 self.model.eval()
         except Exception as e:
             print(e)
@@ -145,7 +145,7 @@ class MusicGenerator:
                     repetition_penalty=self.config.repetition_penalty,
                     pad_token_id=self.tokenizer.eos_token_id,
                     do_sample=True,
-                )  # type: ignore[attr-defined]
+                )  # type: ignore[attr-defined, operator]
 
             # Decode and convert to harmony
             if self.tokenizer is None:
