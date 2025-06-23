@@ -302,7 +302,7 @@ class ExternalAPIModel(AIModelInterface):
             return False
         try:
             response = self.session.get(self.config.endpoint + "/health", timeout=5)
-            return response.status_code == 200
+            return bool(response.status_code == 200)
         except Exception:
             return False
 

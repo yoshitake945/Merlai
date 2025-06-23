@@ -126,16 +126,14 @@ async def generate_music(
                 success=True,
             )
         except Exception:
-            return GenerationResponse(
-                success=False,
-                error_message="An error occurred during music generation.",
-                duration=0.0,
+            raise HTTPException(
+                status_code=500,
+                detail="An error occurred during music generation."
             )
     except Exception:
-        return GenerationResponse(
-            success=False,
-            error_message="An error occurred during music generation.",
-            duration=0.0,
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred during music generation."
         )
 
 
