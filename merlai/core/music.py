@@ -34,9 +34,7 @@ class MusicGenerator:
         self.model_path = model_path or "microsoft/DialoGPT-medium"
         self.tokenizer: Optional[AutoTokenizer] = None
         self.model: Optional[AutoModelForCausalLM] = None
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu"
-        )
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.config = GenerationConfig()
 
         # AI model integration
@@ -56,8 +54,9 @@ class MusicGenerator:
                 type=ModelType.HUGGINGFACE,
                 model_path=self.model_path,
             )
-            self.ai_model_manager.register_model(hf_config)
-            self.ai_model_manager.set_default_model("default-hf")
+            if self.ai_model_manager is not None:
+                self.ai_model_manager.register_model(hf_config)
+                self.ai_model_manager.set_default_model("default-hf")
         except Exception as e:
             # Fallback to legacy mode if AI models fail to initialize
             self.use_ai_models = False
@@ -102,22 +101,21 @@ class MusicGenerator:
             )
 
             try:
-                response = self.ai_model_manager.generate_harmony(
-                    model_name, request
-                )
+                response = self.ai_model_manager.generate_harmony(model_name, request)
 
                 if response.success and response.result:
-                    return response.result
+                    if isinstance(response.result, Harmony):
+                        return response.result
+                    else:
+                        raise RuntimeError("AI model did not return Harmony type")
                 else:
                     # Fallback to legacy method if AI model fails
                     print(
                         f"Warning: AI model failed, using legacy method: {response.error_message}"  # noqa: E501
                     )
-                    return self._generate_harmony_legacy(melody, style)
             except Exception as e:
                 # Fallback to legacy method on any exception
                 print(f"Warning: AI model exception, using legacy method: {e}")
-                return self._generate_harmony_legacy(melody, style)
         # Legacy method
         return self._generate_harmony_legacy(melody, style)
 
@@ -187,14 +185,6 @@ class MusicGenerator:
         harmony: Harmony,
         model_name: Optional[str] = None,
     ) -> Bass:
-        
-        return Harmony(
-            chords=chords,
-            style=style,
-            key=melody.key
-        )
-
-    def generate_bass_line(self, melody: Melody, harmony: Harmony, model_name: Optional[str] = None) -> Bass:
         """Generate bass line based on melody and harmony."""
         if self.use_ai_models and self.ai_model_manager:
             # Use AI model manager
@@ -210,29 +200,16 @@ class MusicGenerator:
 
             response = self.ai_model_manager.generate_bass(model_name, request)
 
-                top_p=self.config.top_p
-            )
-            
-            response = self.ai_model_manager.generate_bass(model_name, request)
-            
             if response.success and response.result:
-                return response.result
+                if isinstance(response.result, Bass):
+                    return response.result
+                else:
+                    raise RuntimeError("AI model did not return Bass type")
             else:
                 # Fallback to legacy method if AI model fails
                 print(
                     f"Warning: AI model failed, using legacy method: {response.error_message}"  # noqa: E501
                 )
-                return self._generate_bass_line_legacy(melody, harmony)
-
-        # Legacy method
-        return self._generate_bass_line_legacy(melody, harmony)
-
-    def _generate_bass_line_legacy(
-        self, melody: Melody, harmony: Harmony
-    ) -> Bass:
-                print(f"Warning: AI model failed, using legacy method: {response.error_message}")
-                return self._generate_bass_line_legacy(melody, harmony)
-        
         # Legacy method
         return self._generate_bass_line_legacy(melody, harmony)
 
@@ -259,13 +236,12 @@ class MusicGenerator:
         tempo: int = 120,
         model_name: Optional[str] = None,
     ) -> Drums:
-    def generate_drums(self, melody: Melody, tempo: int = 120, model_name: Optional[str] = None) -> Drums:
         """Generate drum pattern based on melody and tempo."""
         if self.use_ai_models and self.ai_model_manager:
             # Use AI model manager
             request = GenerationRequest(
                 melody=melody,
-                style="pop",  # Default style for drums
+                style="pop",
                 key=melody.key,
                 tempo=tempo,
                 generation_type="drums",
@@ -273,17 +249,13 @@ class MusicGenerator:
                 top_p=self.config.top_p,
             )
 
-            response = self.ai_model_manager.generate_drums(
-                model_name, request
-            )
-
-                top_p=self.config.top_p
-            )
-            
             response = self.ai_model_manager.generate_drums(model_name, request)
-            
+
             if response.success and response.result:
-                return response.result
+                if isinstance(response.result, Drums):
+                    return response.result
+                else:
+                    raise RuntimeError("AI model did not return Drums type")
             else:
                 # Fallback to legacy method if AI model fails
                 print(
@@ -291,9 +263,6 @@ class MusicGenerator:
                 )
                 return self._generate_drums_legacy(melody, tempo)
 
-                print(f"Warning: AI model failed, using legacy method: {response.error_message}")
-                return self._generate_drums_legacy(melody, tempo)
-        
         # Legacy method
         return self._generate_drums_legacy(melody, tempo)
 

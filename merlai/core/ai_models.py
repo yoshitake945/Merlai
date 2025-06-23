@@ -44,6 +44,7 @@ class ModelConfig:
 @dataclass
 class GenerationRequest:
     """Request for music generation."""
+
     melody: Melody
     style: str
     key: str
@@ -58,6 +59,7 @@ class GenerationRequest:
 @dataclass
 class GenerationResponse:
     """Response from music generation."""
+
     success: bool
     result: Optional[Union[Harmony, Bass, Drums, Dict[str, Any]]] = None
     error_message: Optional[str] = None
@@ -68,48 +70,55 @@ class GenerationResponse:
 
 class AIModelInterface(ABC):
     """Abstract interface for AI models."""
-    
+
     def __init__(self, config: ModelConfig):
         self.config = config
         self.model_name = config.name
-    
+
     @abstractmethod
     def is_available(self) -> bool:
         """Check if the model is available for use."""
         pass
+
     @abstractmethod
     def get_model_info(self) -> Dict[str, Any]:
         """Get information about the model."""
         pass
-    
+
     @abstractmethod
     def generate_harmony(self, request: GenerationRequest) -> GenerationResponse:
         """Generate harmony from melody."""
         pass
-    
+
     @abstractmethod
     def generate_bass(self, request: GenerationRequest) -> GenerationResponse:
         """Generate bass line from melody and harmony."""
         pass
+
     @abstractmethod
     def generate_drums(self, request: GenerationRequest) -> GenerationResponse:
         """Generate drum patterns from melody and style."""
         pass
+
     @abstractmethod
     def analyze_music(self, midi_data: bytes) -> GenerationResponse:
         """Analyze music and extract features."""
         pass
 
+    def unload_model(self) -> None:
+        pass
+
 
 class HuggingFaceModel(AIModelInterface):
     """Hugging Face model implementation."""
+
     def __init__(self, config: ModelConfig):
         super().__init__(config)
         self.tokenizer = None
         self.model = None
         self._load_model()
 
-    def _load_model(self):
+    def _load_model(self) -> None:
         """Load the Hugging Face model."""
         try:
             from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -122,7 +131,8 @@ class HuggingFaceModel(AIModelInterface):
             self.model = AutoModelForCausalLM.from_pretrained(model_path)
 
             # Set model to evaluation mode
-            self.model.eval()
+            if self.model is not None:
+                self.model.eval()
 
             logger.info(f"Loaded HuggingFace model: {self.config.name}")
 
@@ -137,7 +147,11 @@ class HuggingFaceModel(AIModelInterface):
 
     def is_available(self) -> bool:
         """Check if the model is available."""
-        return self.tokenizer is not None and self.model is not None
+        if self.tokenizer is None:
+            return False
+        if self.model is None:
+            return False
+        return True
 
     def get_model_info(self) -> Dict[str, Any]:
         """Get model information."""
@@ -152,7 +166,7 @@ class HuggingFaceModel(AIModelInterface):
     def generate_harmony(self, request: GenerationRequest) -> GenerationResponse:
         """Generate harmony using Hugging Face model."""
         start_time = time.time()
-        
+
         if not self.is_available():
             return GenerationResponse(
                 success=False,
@@ -169,14 +183,12 @@ class HuggingFaceModel(AIModelInterface):
                 chord = Chord(
                     root=note.pitch,
                     chord_type="major",
-                    duration=note.duration, 
+                    duration=note.duration,
                     start_time=note.start_time,
                 )
                 chords.append(chord)
 
-            harmony = Harmony(
-                chords=chords, style=request.style, key=request.key
-            )
+            harmony = Harmony(chords=chords, style=request.style, key=request.key)
 
             generation_time = time.time() - start_time
 
@@ -200,7 +212,7 @@ class HuggingFaceModel(AIModelInterface):
     def generate_bass(self, request: GenerationRequest) -> GenerationResponse:
         """Generate bass line using Hugging Face model."""
         start_time = time.time()
-        
+
         if not self.is_available():
             return GenerationResponse(
                 success=False,
@@ -242,7 +254,7 @@ class HuggingFaceModel(AIModelInterface):
     def generate_drums(self, request: GenerationRequest) -> GenerationResponse:
         """Generate drum patterns using Hugging Face model."""
         start_time = time.time()
-        
+
         if not self.is_available():
             return GenerationResponse(
                 success=False,
@@ -254,12 +266,8 @@ class HuggingFaceModel(AIModelInterface):
         try:
             # Placeholder implementation
             drum_notes = [
-                Note(
-                    pitch=36, velocity=100, duration=0.5, start_time=0.0
-                ),  # Bass drum
-                Note(
-                    pitch=38, velocity=80, duration=0.5, start_time=0.5
-                ),  # Snare
+                Note(pitch=36, velocity=100, duration=0.5, start_time=0.0),  # Bass drum
+                Note(pitch=38, velocity=80, duration=0.5, start_time=0.5),  # Snare
             ]
             drums = Drums(notes=drum_notes)
 
@@ -284,7 +292,7 @@ class HuggingFaceModel(AIModelInterface):
     def analyze_music(self, midi_data: bytes) -> GenerationResponse:
         """Analyze music using Hugging Face model."""
         start_time = time.time()
-        
+
         if not self.is_available():
             return GenerationResponse(
                 success=False,
@@ -320,6 +328,9 @@ class HuggingFaceModel(AIModelInterface):
                 generation_time=time.time() - start_time,
             )
 
+    def unload_model(self) -> None:
+        pass
+
 
 class ExternalAPIModel(AIModelInterface):
     """External API model implementation."""
@@ -341,9 +352,7 @@ class ExternalAPIModel(AIModelInterface):
             return False
 
         try:
-            response = self.session.get(
-                self.config.endpoint + "/health", timeout=5
-            )
+            response = self.session.get(self.config.endpoint + "/health", timeout=5)
             return response.status_code == 200
         except Exception:
             return False
@@ -361,7 +370,7 @@ class ExternalAPIModel(AIModelInterface):
     def generate_harmony(self, request: GenerationRequest) -> GenerationResponse:
         """Generate harmony using external API."""
         start_time = time.time()
-        
+
         if not self.config.endpoint:
             return GenerationResponse(
                 success=False,
@@ -374,7 +383,7 @@ class ExternalAPIModel(AIModelInterface):
             # Simulate HTTP request that could fail
             response = requests.get(self.config.endpoint, timeout=5)
             response.raise_for_status()
-    
+
             # Placeholder implementation
             chords = []
             for note in request.melody.notes:
@@ -386,9 +395,7 @@ class ExternalAPIModel(AIModelInterface):
                 )
                 chords.append(chord)
 
-            harmony = Harmony(
-                chords=chords, style=request.style, key=request.key
-            )
+            harmony = Harmony(chords=chords, style=request.style, key=request.key)
 
             generation_time = time.time() - start_time
 
@@ -412,7 +419,7 @@ class ExternalAPIModel(AIModelInterface):
     def generate_bass(self, request: GenerationRequest) -> GenerationResponse:
         """Generate bass using external API."""
         start_time = time.time()
-        
+
         if not self.config.endpoint:
             return GenerationResponse(
                 success=False,
@@ -454,7 +461,7 @@ class ExternalAPIModel(AIModelInterface):
     def generate_drums(self, request: GenerationRequest) -> GenerationResponse:
         """Generate drums using external API."""
         start_time = time.time()
-        
+
         if not self.config.endpoint:
             return GenerationResponse(
                 success=False,
@@ -466,12 +473,8 @@ class ExternalAPIModel(AIModelInterface):
         try:
             # Placeholder implementation
             drum_notes = [
-                Note(
-                    pitch=36, velocity=100, duration=0.5, start_time=0.0
-                ),  # Bass drum
-                Note(
-                    pitch=38, velocity=80, duration=0.5, start_time=0.5
-                ),  # Snare
+                Note(pitch=36, velocity=100, duration=0.5, start_time=0.0),  # Bass drum
+                Note(pitch=38, velocity=80, duration=0.5, start_time=0.5),  # Snare
             ]
             drums = Drums(notes=drum_notes)
 
@@ -496,7 +499,7 @@ class ExternalAPIModel(AIModelInterface):
     def analyze_music(self, midi_data: bytes) -> GenerationResponse:
         """Analyze music using external API."""
         start_time = time.time()
-        
+
         if not self.config.endpoint:
             return GenerationResponse(
                 success=False,
@@ -532,11 +535,14 @@ class ExternalAPIModel(AIModelInterface):
                 generation_time=time.time() - start_time,
             )
 
+    def unload_model(self) -> None:
+        pass
+
 
 class AIModelManager:
     """Manager for AI models."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.models: Dict[str, AIModelInterface] = {}
         self.default_model: Optional[str] = None
 
@@ -548,6 +554,7 @@ class AIModelManager:
                 logger.warning(f"Model {config.name} already registered")
                 return False
 
+            model: AIModelInterface
             if config.type == ModelType.HUGGINGFACE:
                 model = HuggingFaceModel(config)
             elif config.type == ModelType.EXTERNAL_API:
@@ -623,9 +630,7 @@ class AIModelManager:
         try:
             return model.generate_harmony(request)
         except Exception as e:
-            logger.error(
-                f"Error generating harmony with model {model_name}: {e}"
-            )
+            logger.error(f"Error generating harmony with model {model_name}: {e}")
             return GenerationResponse(
                 success=False, error_message=str(e), model_name=model_name
             )
@@ -712,4 +717,4 @@ class AIModelManager:
                 success=False, error_message="No MIDI data provided"
             )
 
-        return model.analyze_music(midi_data) 
+        return model.analyze_music(midi_data)

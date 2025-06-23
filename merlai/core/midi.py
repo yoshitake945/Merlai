@@ -13,7 +13,7 @@ from .types import Note, Song, Track
 class MIDIGenerator:
     """MIDI file generation and processing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize MIDI generator."""
         self.default_velocity = 64
         self.default_duration = 0.5
@@ -22,7 +22,7 @@ class MIDIGenerator:
         """Create MIDI file from song data."""
         if song.tempo <= 0:
             raise ValueError(f"tempo must be positive, got {song.tempo}")
-        
+
         midi = MIDIFile(len(song.tracks), deinterleave=False)
 
         # Set tempo

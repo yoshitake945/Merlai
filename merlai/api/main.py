@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 # Create FastAPI application
 app = FastAPI(
     title="Merlai Music Generation API",
-    description="AI-powered music creation assistant for filling missing notes",   # noqa: E501
+    description="AI-powered music creation assistant for filling missing notes",  # noqa: E501
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -99,9 +99,7 @@ async def readiness_check() -> dict[str, str]:
 
 
 @app.exception_handler(Exception)
-async def global_exception_handler(
-    request: Any, exc: Exception
-) -> JSONResponse:
+async def global_exception_handler(request: Any, exc: Exception) -> JSONResponse:
     """Global exception handler."""
     return JSONResponse(
         status_code=500,
@@ -114,9 +112,7 @@ async def global_exception_handler(
 
 
 @app.exception_handler(HTTPException)
-async def http_exception_handler(
-    request: Any, exc: HTTPException
-) -> JSONResponse:
+async def http_exception_handler(request: Any, exc: HTTPException) -> JSONResponse:
     """HTTP exception handler."""
     return JSONResponse(
         status_code=exc.status_code,

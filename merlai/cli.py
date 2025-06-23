@@ -41,15 +41,9 @@ def main() -> None:
 )
 @click.option("--tempo", "-t", default=120, help="Tempo in BPM")
 @click.option("--key", "-k", default="C", help="Musical key")
-@click.option(
-    "--generate-harmony", is_flag=True, default=True, help="Generate harmony"
-)
-@click.option(
-    "--generate-bass", is_flag=True, default=True, help="Generate bass line"
-)
-@click.option(
-    "--generate-drums", is_flag=True, default=True, help="Generate drums"
-)
+@click.option("--generate-harmony", is_flag=True, default=True, help="Generate harmony")
+@click.option("--generate-bass", is_flag=True, default=True, help="Generate bass line")
+@click.option("--generate-drums", is_flag=True, default=True, help="Generate drums")
 def generate(
     input_file: Optional[str],
     output_file: Optional[str],
@@ -88,30 +82,14 @@ def generate(
             click.echo("Using sample melody...")
             melody = Melody(
                 notes=[
-                    Note(
-                        pitch=60, velocity=80, duration=0.5, start_time=0.0
-                    ),  # C
-                    Note(
-                        pitch=62, velocity=80, duration=0.5, start_time=0.5
-                    ),  # D
-                    Note(
-                        pitch=64, velocity=80, duration=0.5, start_time=1.0
-                    ),  # E
-                    Note(
-                        pitch=65, velocity=80, duration=0.5, start_time=1.5
-                    ),  # F
-                    Note(
-                        pitch=67, velocity=80, duration=0.5, start_time=2.0
-                    ),  # G
-                    Note(
-                        pitch=69, velocity=80, duration=0.5, start_time=2.5
-                    ),  # A
-                    Note(
-                        pitch=71, velocity=80, duration=0.5, start_time=3.0
-                    ),  # B
-                    Note(
-                        pitch=72, velocity=80, duration=0.5, start_time=3.5
-                    ),  # C
+                    Note(pitch=60, velocity=80, duration=0.5, start_time=0.0),  # C
+                    Note(pitch=62, velocity=80, duration=0.5, start_time=0.5),  # D
+                    Note(pitch=64, velocity=80, duration=0.5, start_time=1.0),  # E
+                    Note(pitch=65, velocity=80, duration=0.5, start_time=1.5),  # F
+                    Note(pitch=67, velocity=80, duration=0.5, start_time=2.0),  # G
+                    Note(pitch=69, velocity=80, duration=0.5, start_time=2.5),  # A
+                    Note(pitch=71, velocity=80, duration=0.5, start_time=3.0),  # B
+                    Note(pitch=72, velocity=80, duration=0.5, start_time=3.5),  # C
                 ],
                 tempo=tempo,
                 key=key,
@@ -140,9 +118,7 @@ def generate(
         tracks: List[Track] = []
 
         # Add melody track
-        tracks.append(
-            Track(name="Melody", notes=melody.notes, channel=0, instrument=0)
-        )
+        tracks.append(Track(name="Melody", notes=melody.notes, channel=0, instrument=0))
 
         # Add generated tracks
         if "harmony" in generated_parts:
@@ -224,9 +200,7 @@ def scan_plugins(directory: Optional[str], output: Optional[str]) -> None:
 
     plugin_data = []
     for plugin in plugins:
-        click.echo(
-            f"  - {plugin.name} ({plugin.manufacturer}) - {plugin.category}"
-        )
+        click.echo(f"  - {plugin.name} ({plugin.manufacturer}) - {plugin.category}")
         plugin_data.append(
             {
                 "name": plugin.name,
@@ -259,14 +233,10 @@ def recommend_plugins(style: str, instrument: str) -> None:
     plugin_manager.scan_plugins()
 
     # Get recommendations
-    recommendations = plugin_manager.get_plugin_recommendations(
-        style, instrument
-    )
+    recommendations = plugin_manager.get_plugin_recommendations(style, instrument)
 
     if not recommendations:
-        click.echo(
-            f"No plugin recommendations found for {style} {instrument}."
-        )
+        click.echo(f"No plugin recommendations found for {style} {instrument}.")
         return
 
     click.echo(f"Plugin recommendations for {style} {instrument}:")

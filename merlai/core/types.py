@@ -17,34 +17,30 @@ class Note:
     start_time: float  # Start time in seconds
     channel: int = 0  # MIDI channel (0-15)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate note parameters after initialization."""
         if not 0 <= self.pitch <= 127:
-            raise ValueError(
-                f"Pitch must be between 0 and 127, got {self.pitch}"
-            )
+            raise ValueError(f"Pitch must be between 0 and 127, got {self.pitch}")
         if not 0 <= self.velocity <= 127:
-            raise ValueError(
-                f"Velocity must be between 0 and 127, got {self.velocity}"
-            )
+            raise ValueError(f"Velocity must be between 0 and 127, got {self.velocity}")
         if self.duration <= 0:
             raise ValueError(f"Duration must be positive, got {self.duration}")
         if self.start_time < 0:
-            raise ValueError(
-                f"Start time must be non-negative, got {self.start_time}"
-            )
+            raise ValueError(f"Start time must be non-negative, got {self.start_time}")
         if not 0 <= self.channel <= 15:
-            raise ValueError(
-                f"Channel must be between 0 and 15, got {self.channel}"
-            )
+            raise ValueError(f"Channel must be between 0 and 15, got {self.channel}")
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return a string representation of the note."""
-        return f"Note(pitch={self.pitch}, velocity={self.velocity}, duration={self.duration}, start_time={self.start_time}, channel={self.channel})"
+        return (
+            f"Note(pitch={self.pitch}, velocity={self.velocity}, duration={self.duration}, "  # noqa: E501
+            f"start_time={self.start_time}, channel={self.channel})"
+        )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return a string representation of the note."""
-        return self.__str__()
+        return self.__str__()  # noqa: E501
+
 
 @dataclass
 class Chord:

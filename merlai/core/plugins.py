@@ -5,10 +5,11 @@ Plugin management system for sound plugins.
 import os
 import json
 from typing import List, Dict, Optional, Any
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic import BaseModel
+from .types import Song, Note, Track
 
 
 @dataclass
@@ -291,20 +292,23 @@ class PluginManager:
             print(f"Failed to import plugin config: {e}")
             return False
 
-    def create_midi_file(self, song):
+    def create_midi_file(self, song: Song) -> bytes:
         """Create MIDI file from song data using MIDIGenerator."""
         from .midi import MIDIGenerator
+
         generator = MIDIGenerator()
         return generator.create_midi_file(song)
 
-    def create_midi_from_notes(self, notes, tempo=120):
+    def create_midi_from_notes(self, notes: List[Note], tempo: int = 120) -> bytes:
         """Create MIDI file from notes using MIDIGenerator."""
         from .midi import MIDIGenerator
+
         generator = MIDIGenerator()
         return generator.create_midi_from_notes(notes, tempo)
 
-    def merge_tracks(self, tracks):
+    def merge_tracks(self, tracks: List[Track]) -> bytes:
         """Merge tracks into a MIDI file using MIDIGenerator."""
         from .midi import MIDIGenerator
+
         generator = MIDIGenerator()
         return generator.merge_tracks(tracks)
