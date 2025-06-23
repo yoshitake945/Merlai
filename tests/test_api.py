@@ -240,7 +240,7 @@ class TestAPIEndpoints:
 
         response = self.client.post("/api/v1/generate", json=request_data)
         assert response.status_code == 422  # Should fail with empty melody
-        assert "empty" in response.json()["detail"].lower()
+        assert any("empty" in err["msg"].lower() for err in response.json()["detail"])
 
     def test_plugins_endpoint_no_plugins(self) -> None:
         """Test plugins endpoint when no plugins are available."""

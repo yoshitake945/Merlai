@@ -5,7 +5,7 @@ Core data types for music generation.
 from dataclasses import dataclass
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator
 
 
 @dataclass
@@ -131,6 +131,12 @@ class GenerationRequest(BaseModel):
     generate_harmony: bool = True
     generate_bass: bool = True
     generate_drums: bool = True
+
+    @validator("melody")
+    def melody_must_not_be_empty(cls, v):
+        if not v:
+            raise ValueError("melody must not be empty")
+        return v
 
 
 class GenerationResponse(BaseModel):

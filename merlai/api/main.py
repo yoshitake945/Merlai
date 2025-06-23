@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -99,15 +99,11 @@ async def readiness_check() -> dict[str, str]:
 
 
 @app.exception_handler(Exception)
-async def global_exception_handler(request: Any, exc: Exception) -> JSONResponse:
+async def global_exception_handler(request: Request, exc: Exception):
     """Global exception handler."""
     return JSONResponse(
         status_code=500,
-        content={
-            "error": "Internal server error",
-            "message": str(exc),
-            "type": type(exc).__name__,
-        },
+        content={"detail": "Internal server error"},
     )
 
 
