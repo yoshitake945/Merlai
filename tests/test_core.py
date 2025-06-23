@@ -643,7 +643,7 @@ class TestMIDIProcessing:
     def test_merge_tracks_empty(self) -> None:
         """Test merging empty tracks."""
         midi_generator = MIDIGenerator()
-        tracks = []
+        tracks: list[Track] = []
         result = midi_generator.merge_tracks(tracks)
         assert isinstance(result, bytes)
 

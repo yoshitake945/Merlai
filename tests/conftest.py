@@ -117,7 +117,6 @@ def mock_transformer_model() -> Generator[dict[str, Mock], None, None]:
         patch("merlai.core.music.AutoTokenizer") as mock_tokenizer,
         patch("merlai.core.music.AutoModelForCausalLM") as mock_model,
     ):
-
         # Mock tokenizer
         mock_tokenizer_instance = Mock()
         mock_tokenizer.from_pretrained.return_value = mock_tokenizer_instance

@@ -367,28 +367,33 @@ class TestExternalAPIModel:
 
     @patch("merlai.core.ai_models.requests.Session")
     def test_external_api_no_endpoint(self, mock_session: Mock) -> None:
-        """Test external API without endpoint configured."""
-        mock_session_instance = Mock()
-        mock_session.return_value = mock_session_instance
-
-        config = ModelConfig(name="test-api-model", type=ModelType.EXTERNAL_API)
-
+        """Test external API model with no endpoint."""
+        config = ModelConfig(
+            name="test-api",
+            type=ModelType.EXTERNAL_API,
+            endpoint=None,
+        )
         model = ExternalAPIModel(config)
+        assert not model.is_available()
 
         melody = Melody(
             notes=[Note(pitch=60, velocity=80, duration=1.0, start_time=0.0)]
         )
 
         request = GenerationRequest(
-            melody=melody, style="pop", key="C", tempo=120, generation_type="harmony"
+            melody=melody,
+            style="pop",
+            key="C",
+            tempo=120,
+            generation_type="harmony",
         )
 
         response = model.generate_harmony(request)
-
-        assert isinstance(response, GenerationResponse)
-        assert response.success is False
-        assert response.error_message is not None
-        assert "API endpoint not configured" in response.error_message
+        assert not response.success
+        assert (
+            response.error_message is not None
+            and "API endpoint not configured" in response.error_message
+        )
 
 
 class TestAIModelManager:
@@ -450,9 +455,14 @@ class TestAIModelManager:
 
     def test_list_models(self) -> None:
         """Test listing registered models."""
-        with patch("merlai.core.ai_models.HuggingFaceModel") as mock_hf:
-            mock_model = Mock()
-            mock_hf.return_value = mock_model
+        with (
+            patch("merlai.core.ai_models.HuggingFaceModel") as mock_hf,
+            patch("merlai.core.ai_models.ExternalAPIModel") as mock_api,
+        ):
+            mock_hf_model = Mock()
+            mock_api_model = Mock()
+            mock_hf.return_value = mock_hf_model
+            mock_api.return_value = mock_api_model
 
             self.manager.register_model(self.hf_config)
             self.manager.register_model(self.api_config)
@@ -695,11 +705,17 @@ class TestAIModelManagerEdgeCases:
     #         ModelConfig(name="unsupported", type="UNKNOWN", model_path="none")
 
     def test_register_duplicate_model(self) -> None:
-        config = ModelConfig(
-            name="dup", type=ModelType.HUGGINGFACE, model_path="facebook/musicgen-small"
-        )
-        assert self.manager.register_model(config) is True
-        assert self.manager.register_model(config) is False
+        with patch("merlai.core.ai_models.HuggingFaceModel") as mock_hf:
+            mock_model = Mock()
+            mock_hf.return_value = mock_model
+
+            config = ModelConfig(
+                name="dup",
+                type=ModelType.HUGGINGFACE,
+                model_path="facebook/musicgen-small",
+            )
+            assert self.manager.register_model(config) is True
+            assert self.manager.register_model(config) is False
 
     def test_remove_nonexistent_model(self) -> None:
         assert self.manager.remove_model("notfound") is False
@@ -711,15 +727,18 @@ class TestAIModelManagerEdgeCases:
         assert self.manager.list_models() == []
 
     def test_generate_harmony_exception(self) -> None:
-        config = ModelConfig(
-            name="errmodel",
-            type=ModelType.HUGGINGFACE,
-            model_path="facebook/musicgen-small",
-        )
-        self.manager.register_model(config)
-        with patch.object(
-            HuggingFaceModel, "generate_harmony", side_effect=Exception("fail")
-        ):
+        with patch("merlai.core.ai_models.HuggingFaceModel") as mock_hf:
+            mock_model = Mock()
+            mock_model.generate_harmony.side_effect = Exception("fail")
+            mock_hf.return_value = mock_model
+
+            config = ModelConfig(
+                name="errmodel",
+                type=ModelType.HUGGINGFACE,
+                model_path="facebook/musicgen-small",
+            )
+            self.manager.register_model(config)
+
             req = GenerationRequest(
                 melody=Melody(notes=[]),
                 style="pop",
@@ -733,27 +752,31 @@ class TestAIModelManagerEdgeCases:
             assert "fail" in resp.error_message
 
     def test_external_api_model_http_error(self) -> None:
-        config = ModelConfig(
-            name="apimodel",
-            type=ModelType.EXTERNAL_API,
-            endpoint="http://localhost:9999",
-        )
-        self.manager.register_model(config)
-        req = GenerationRequest(
-            melody=Melody(notes=[]),
-            style="pop",
-            key="C",
-            tempo=120,
-            generation_type="harmony",
-        )
-        with patch(
-            "merlai.core.ai_models.requests.Session.get",
-            side_effect=Exception("http error"),
-        ):
-            resp = self.manager.generate_harmony("apimodel", req)
-            assert resp.success is False
-            assert resp.error_message is not None
-            assert "error" in resp.error_message.lower()
+        with patch("merlai.core.ai_models.ExternalAPIModel") as mock_api:
+            mock_model = Mock()
+            mock_api.return_value = mock_model
+
+            config = ModelConfig(
+                name="apimodel",
+                type=ModelType.EXTERNAL_API,
+                endpoint="http://localhost:9999",
+            )
+            self.manager.register_model(config)
+            req = GenerationRequest(
+                melody=Melody(notes=[]),
+                style="pop",
+                key="C",
+                tempo=120,
+                generation_type="harmony",
+            )
+            with patch(
+                "merlai.core.ai_models.requests.Session.get",
+                side_effect=Exception("http error"),
+            ):
+                resp = self.manager.generate_harmony("apimodel", req)
+                assert resp.success is False
+                assert resp.error_message is not None
+                assert "error" in resp.error_message.lower()
 
 
 class TestAIModelManagement:
@@ -766,7 +789,7 @@ class TestAIModelManagement:
             name="test-model",
             type=ModelType.HUGGINGFACE,
             model_path="facebook/musicgen-small",  # Use valid model path
-            parameters={"layers": 12, "heads": 8}
+            parameters={"layers": 12, "heads": 8},
         )
         result = generator.register_ai_model(config)
         # Note: Registration may fail due to model loading issues, which is expected
@@ -780,7 +803,7 @@ class TestAIModelManagement:
             name="test-model",
             type=ModelType.HUGGINGFACE,
             model_path="facebook/musicgen-small",  # Use valid model path
-            parameters={"layers": 12, "heads": 8}
+            parameters={"layers": 12, "heads": 8},
         )
         generator.register_ai_model(config)
         result = generator.set_default_ai_model("test-model")
@@ -789,27 +812,36 @@ class TestAIModelManagement:
 
     def test_list_ai_models(self) -> None:
         """Test listing AI models."""
-        generator = MusicGenerator()
-        config1 = ModelConfig(
-            name="model1",
-            type=ModelType.HUGGINGFACE,
-            model_path="/path/to/model1",
-            parameters={}
-        )
-        config2 = ModelConfig(
-            name="model2",
-            type=ModelType.EXTERNAL_API,
-            model_path="/path/to/model2",
-            parameters={}
-        )
-        generator.register_ai_model(config1)
-        generator.register_ai_model(config2)
-        
-        models = generator.list_ai_models()
-        # MusicGenerator initializes with a default model, so we expect 3 models total
-        assert len(models) >= 2
-        assert "model1" in models
-        assert "model2" in models
+        with (
+            patch("merlai.core.ai_models.HuggingFaceModel") as mock_hf,
+            patch("merlai.core.ai_models.ExternalAPIModel") as mock_api,
+        ):
+            mock_hf_model = Mock()
+            mock_api_model = Mock()
+            mock_hf.return_value = mock_hf_model
+            mock_api.return_value = mock_api_model
+
+            generator = MusicGenerator()
+            config1 = ModelConfig(
+                name="model1",
+                type=ModelType.HUGGINGFACE,
+                model_path="/path/to/model1",
+                parameters={},
+            )
+            config2 = ModelConfig(
+                name="model2",
+                type=ModelType.EXTERNAL_API,
+                endpoint="http://localhost:8000",
+                parameters={},
+            )
+            generator.register_ai_model(config1)
+            generator.register_ai_model(config2)
+
+            models = generator.list_ai_models()
+            # MusicGenerator initializes with a default model, so we expect 3 models total
+            assert len(models) >= 2
+            assert "model1" in models
+            assert "model2" in models
 
     def test_ai_model_not_found(self) -> None:
         """Test behavior when AI model is not found."""
@@ -824,7 +856,7 @@ class TestAIModelManagement:
             name="test-model",
             type=ModelType.HUGGINGFACE,
             model_path="facebook/musicgen-small",  # Use valid model path
-            parameters={"layers": 12, "heads": 8}
+            parameters={"layers": 12, "heads": 8},
         )
         generator.register_ai_model(config)
         generator.set_default_ai_model("test-model")
@@ -833,7 +865,7 @@ class TestAIModelManagement:
         melody = Melody(
             notes=[Note(pitch=60, velocity=80, duration=1.0, start_time=0.0)],
             tempo=120,
-            key="C"
+            key="C",
         )
 
         # Test AI harmony generation
@@ -866,7 +898,7 @@ class TestAIModelErrorHandling:
             name="invalid-model",
             type=ModelType.HUGGINGFACE,
             model_path="/nonexistent/path",
-            parameters={}
+            parameters={},
         )
         result = generator.register_ai_model(config)
         # Should handle gracefully
@@ -876,11 +908,11 @@ class TestAIModelErrorHandling:
         """Test generation when no AI models are available."""
         generator = MusicGenerator()
         generator.use_ai_models = True
-        
+
         melody = Melody(
             notes=[Note(pitch=60, velocity=80, duration=1.0, start_time=0.0)],
             tempo=120,
-            key="C"
+            key="C",
         )
 
         # Should fall back to rule-based generation

@@ -480,6 +480,13 @@ class AIModelManager:
                 logger.error(f"Unsupported model type: {config.type}")
                 return False
 
+            # Check if the model is available after initialization
+            if not model.is_available():
+                logger.error(
+                    f"Model {config.name} is not available after initialization"
+                )
+                return False
+
             self.models[config.name] = model
             logger.info(f"Registered model: {config.name} ({config.type})")
             return True

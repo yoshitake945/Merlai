@@ -1107,7 +1107,7 @@ class TestAIModelEndpoints:
             "name": "test-model",
             "type": "transformer",
             "path": "/path/to/model",
-            "parameters": {"layers": 12, "heads": 8}
+            "parameters": {"layers": 12, "heads": 8},
         }
         response = self.client.post("/api/v1/ai/models/register", json=model_config)
         assert response.status_code == 200
@@ -1135,10 +1135,12 @@ class TestAIModelEndpoints:
     def test_generate_harmony_ai(self) -> None:
         """Test AI harmony generation."""
         request_data = {
-            "melody": [{"pitch": 60, "velocity": 80, "duration": 1.0, "start_time": 0.0}],
+            "melody": [
+                {"pitch": 60, "velocity": 80, "duration": 1.0, "start_time": 0.0}
+            ],
             "style": "pop",
             "tempo": 120,
-            "key": "C"
+            "key": "C",
         }
         response = self.client.post("/api/v1/ai/generate/harmony", json=request_data)
         assert response.status_code == 200
@@ -1148,10 +1150,12 @@ class TestAIModelEndpoints:
     def test_generate_bass_ai(self) -> None:
         """Test AI bass generation."""
         request_data = {
-            "melody": [{"pitch": 60, "velocity": 80, "duration": 1.0, "start_time": 0.0}],
+            "melody": [
+                {"pitch": 60, "velocity": 80, "duration": 1.0, "start_time": 0.0}
+            ],
             "style": "pop",
             "tempo": 120,
-            "key": "C"
+            "key": "C",
         }
         response = self.client.post("/api/v1/ai/generate/bass", json=request_data)
         assert response.status_code == 200
@@ -1161,10 +1165,12 @@ class TestAIModelEndpoints:
     def test_generate_drums_ai(self) -> None:
         """Test AI drums generation."""
         request_data = {
-            "melody": [{"pitch": 60, "velocity": 80, "duration": 1.0, "start_time": 0.0}],
+            "melody": [
+                {"pitch": 60, "velocity": 80, "duration": 1.0, "start_time": 0.0}
+            ],
             "style": "pop",
             "tempo": 120,
-            "key": "C"
+            "key": "C",
         }
         response = self.client.post("/api/v1/ai/generate/drums", json=request_data)
         assert response.status_code == 200
@@ -1192,7 +1198,9 @@ class TestPluginEndpoints:
 
     def test_get_plugin_recommendations(self) -> None:
         """Test getting plugin recommendations."""
-        response = self.client.get("/api/v1/plugins/recommendations?style=pop&instrument=piano")
+        response = self.client.get(
+            "/api/v1/plugins/recommendations?style=pop&instrument=piano"
+        )
         assert response.status_code == 200
         data = response.json()
         assert "recommendations" in data
@@ -1214,7 +1222,9 @@ class TestPluginEndpoints:
 
     def test_set_plugin_parameter(self) -> None:
         """Test setting plugin parameter."""
-        response = self.client.post("/api/v1/plugins/test-plugin/parameters/volume", params={"value": 0.8})
+        response = self.client.post(
+            "/api/v1/plugins/test-plugin/parameters/volume", params={"value": 0.8}
+        )
         assert response.status_code == 200
         data = response.json()
         assert "message" in data
@@ -1257,7 +1267,7 @@ class TestConfigEndpoints:
         config_update = {
             "ai_models_enabled": True,
             "default_model": "test-model",
-            "max_batch_size": 4
+            "max_batch_size": 4,
         }
         response = self.client.post("/api/v1/config", json=config_update)
         assert response.status_code == 200
