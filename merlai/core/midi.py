@@ -22,11 +22,7 @@ class MIDIGenerator:
         """Create MIDI file from song data."""
         if song.tempo <= 0:
             raise ValueError(f"tempo must be positive, got {song.tempo}")
-<<<<<<< HEAD
-
-=======
         
->>>>>>> origin/dev
         midi = MIDIFile(len(song.tracks), deinterleave=False)
 
         # Set tempo
@@ -41,24 +37,12 @@ class MIDIGenerator:
         midi.writeFile(midi_bytes)
         return midi_bytes.getvalue()
 
-<<<<<<< HEAD
-    def create_midi_from_notes(
-        self, notes: List[Note], tempo: int = 120
-    ) -> bytes:
-        """Create MIDI file from list of notes."""
-        if tempo <= 0:
-            raise ValueError(f"tempo must be positive, got {tempo}")
-
-=======
     def create_midi_from_notes(self, notes: List[Note], tempo: int = 120) -> bytes:
         """Create MIDI file from list of notes."""
         if tempo <= 0:
             raise ValueError(f"tempo must be positive, got {tempo}")
-        
->>>>>>> origin/dev
         midi = MIDIFile(1, deinterleave=False)
         midi.addTempo(0, 0, tempo)
-
         for note in notes:
             midi.addNote(
                 track=0,
@@ -68,7 +52,6 @@ class MIDIGenerator:
                 duration=note.duration,
                 volume=note.velocity,
             )
-
         midi_bytes = io.BytesIO()
         midi.writeFile(midi_bytes)
         return midi_bytes.getvalue()
@@ -109,13 +92,7 @@ class MIDIGenerator:
         midi.writeFile(midi_bytes)
         return midi_bytes.getvalue()
 
-<<<<<<< HEAD
-    def quantize_notes(
-        self, notes: List[Note], grid_size: float = 0.25
-    ) -> List[Note]:
-=======
     def quantize_notes(self, notes: List[Note], grid_size: float = 0.25) -> List[Note]:
->>>>>>> origin/dev
         """Quantize notes to a grid."""
         if grid_size <= 0:
             raise ValueError(f"grid_size must be positive, got {grid_size}")
@@ -124,7 +101,6 @@ class MIDIGenerator:
             # Quantize start time
             quantized_start = round(note.start_time / grid_size) * grid_size
             quantized_duration = round(note.duration / grid_size) * grid_size
-
             quantized_note = Note(
                 pitch=note.pitch,
                 velocity=note.velocity,
@@ -133,7 +109,6 @@ class MIDIGenerator:
                 channel=note.channel,
             )
             quantized_notes.append(quantized_note)
-
         return quantized_notes
 
     def transpose_notes(self, notes: List[Note], semitones: int) -> List[Note]:
