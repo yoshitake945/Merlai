@@ -453,11 +453,11 @@ class AIModelManager:
         self.models: Dict[str, AIModelInterface] = {}
         self.default_model: Optional[str] = None
 
-    def register_model(self, config: ModelConfig) -> bool:
+    def register_model(self, config: Optional[ModelConfig]) -> bool:
         """
         Register a new AI model.
         Args:
-            config (ModelConfig): Model configuration
+            config (Optional[ModelConfig]): Model configuration
         Returns:
             bool: Registration success if True
         """
@@ -466,7 +466,7 @@ class AIModelManager:
             if config is None:
                 logger.error("Cannot register model: config is None")
                 return False
-            
+
             if config.name in self.models:
                 logger.warning(f"Model {config.name} already registered")
                 return False
