@@ -4,26 +4,15 @@ Command-line interface for Merlai music generation.
 
 import json
 import logging
-<<<<<<< HEAD
 from typing import Any, Dict, List, Optional
-=======
-from typing import List, Dict, Any, Optional
->>>>>>> origin/dev
 
 import click
 import uvicorn
 
-<<<<<<< HEAD
 from .core.midi import MIDIGenerator, Track
 from .core.music import MusicGenerator
 from .core.plugins import PluginManager
 from .core.types import Melody, Note
-=======
-from .core.music import MusicGenerator
-from .core.midi import MIDIGenerator, Track
-from .core.plugins import PluginManager
-from .core.types import Note, Melody
->>>>>>> origin/dev
 
 
 @click.group()
@@ -35,15 +24,11 @@ def main() -> None:
 
 @main.command()
 @click.option(
-<<<<<<< HEAD
     "--input",
     "-i",
     "input_file",
     type=click.Path(exists=True),
     help="Input MIDI file",
-=======
-    "--input", "-i", "input_file", type=click.Path(exists=True), help="Input MIDI file"
->>>>>>> origin/dev
 )
 @click.option(
     "--output", "-o", "output_file", type=click.Path(), help="Output MIDI file"
@@ -56,7 +41,6 @@ def main() -> None:
 )
 @click.option("--tempo", "-t", default=120, help="Tempo in BPM")
 @click.option("--key", "-k", default="C", help="Musical key")
-<<<<<<< HEAD
 @click.option(
     "--generate-harmony", is_flag=True, default=True, help="Generate harmony"
 )
@@ -66,11 +50,6 @@ def main() -> None:
 @click.option(
     "--generate-drums", is_flag=True, default=True, help="Generate drums"
 )
-=======
-@click.option("--generate-harmony", is_flag=True, default=True, help="Generate harmony")
-@click.option("--generate-bass", is_flag=True, default=True, help="Generate bass line")
-@click.option("--generate-drums", is_flag=True, default=True, help="Generate drums")
->>>>>>> origin/dev
 def generate(
     input_file: Optional[str],
     output_file: Optional[str],
@@ -100,20 +79,15 @@ def generate(
 
             song = midi_generator.parse_midi_file(midi_data)
             melody = Melody(
-<<<<<<< HEAD
                 notes=song.tracks[0].notes if song.tracks else [],
                 tempo=tempo,
                 key=key,
-=======
-                notes=song.tracks[0].notes if song.tracks else [], tempo=tempo, key=key
->>>>>>> origin/dev
             )
         else:
             # Create sample melody for testing
             click.echo("Using sample melody...")
             melody = Melody(
                 notes=[
-<<<<<<< HEAD
                     Note(
                         pitch=60, velocity=80, duration=0.5, start_time=0.0
                     ),  # C
@@ -138,16 +112,6 @@ def generate(
                     Note(
                         pitch=72, velocity=80, duration=0.5, start_time=3.5
                     ),  # C
-=======
-                    Note(pitch=60, velocity=80, duration=0.5, start_time=0.0),  # C
-                    Note(pitch=62, velocity=80, duration=0.5, start_time=0.5),  # D
-                    Note(pitch=64, velocity=80, duration=0.5, start_time=1.0),  # E
-                    Note(pitch=65, velocity=80, duration=0.5, start_time=1.5),  # F
-                    Note(pitch=67, velocity=80, duration=0.5, start_time=2.0),  # G
-                    Note(pitch=69, velocity=80, duration=0.5, start_time=2.5),  # A
-                    Note(pitch=71, velocity=80, duration=0.5, start_time=3.0),  # B
-                    Note(pitch=72, velocity=80, duration=0.5, start_time=3.5),  # C
->>>>>>> origin/dev
                 ],
                 tempo=tempo,
                 key=key,
@@ -176,13 +140,9 @@ def generate(
         tracks: List[Track] = []
 
         # Add melody track
-<<<<<<< HEAD
         tracks.append(
             Track(name="Melody", notes=melody.notes, channel=0, instrument=0)
         )
-=======
-        tracks.append(Track(name="Melody", notes=melody.notes, channel=0, instrument=0))
->>>>>>> origin/dev
 
         # Add generated tracks
         if "harmony" in generated_parts:
@@ -239,14 +199,10 @@ def generate(
 
 @main.command()
 @click.option(
-<<<<<<< HEAD
     "--directory",
     "-d",
     type=click.Path(exists=True),
     help="Plugin directory to scan",
-=======
-    "--directory", "-d", type=click.Path(exists=True), help="Plugin directory to scan"
->>>>>>> origin/dev
 )
 @click.option("--output", "-o", type=click.Path(), help="Output JSON file")
 def scan_plugins(directory: Optional[str], output: Optional[str]) -> None:
@@ -268,13 +224,9 @@ def scan_plugins(directory: Optional[str], output: Optional[str]) -> None:
 
     plugin_data = []
     for plugin in plugins:
-<<<<<<< HEAD
         click.echo(
             f"  - {plugin.name} ({plugin.manufacturer}) - {plugin.category}"
         )
-=======
-        click.echo(f"  - {plugin.name} ({plugin.manufacturer}) - {plugin.category}")
->>>>>>> origin/dev
         plugin_data.append(
             {
                 "name": plugin.name,
@@ -307,7 +259,6 @@ def recommend_plugins(style: str, instrument: str) -> None:
     plugin_manager.scan_plugins()
 
     # Get recommendations
-<<<<<<< HEAD
     recommendations = plugin_manager.get_plugin_recommendations(
         style, instrument
     )
@@ -316,12 +267,6 @@ def recommend_plugins(style: str, instrument: str) -> None:
         click.echo(
             f"No plugin recommendations found for {style} {instrument}."
         )
-=======
-    recommendations = plugin_manager.get_plugin_recommendations(style, instrument)
-
-    if not recommendations:
-        click.echo(f"No plugin recommendations found for {style} {instrument}.")
->>>>>>> origin/dev
         return
 
     click.echo(f"Plugin recommendations for {style} {instrument}:")
@@ -352,26 +297,18 @@ def serve(host: str, port: int, reload: bool, log_level: str) -> None:
     click.echo(f"Log level: {log_level}")
 
     uvicorn.run(
-<<<<<<< HEAD
         "merlai.api.main:app",
         host=host,
         port=port,
         reload=reload,
         log_level=log_level,
-=======
-        "merlai.api.main:app", host=host, port=port, reload=reload, log_level=log_level
->>>>>>> origin/dev
     )
 
 
 def _chord_to_notes(chord: Any) -> List[Note]:
     """Convert a chord to a list of notes."""
     # This is a placeholder implementation
-<<<<<<< HEAD
     # In a real implementation, you would convert chord notation to actual notes # noqa: E501
-=======
-    # In a real implementation, you would convert chord notation to actual notes
->>>>>>> origin/dev
     return []
 
 
