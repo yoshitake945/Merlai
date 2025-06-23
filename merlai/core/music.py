@@ -76,7 +76,7 @@ class MusicGenerator:
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
             self.model = AutoModelForCausalLM.from_pretrained(self.model_path)
             if self.model is not None:
-                self.model.to(self.device)  # type: ignore
+                self.model.to(self.device)  # type: ignore[attr-defined]
                 self.model.eval()
         except Exception as e:
             print(e)
@@ -103,7 +103,9 @@ class MusicGenerator:
             )
 
             try:
-                response = self.ai_model_manager.generate_harmony(model_name, request)
+                response = self.ai_model_manager.generate_harmony(
+                    model_name, request
+                )
 
                 if (
                     response.success
@@ -112,16 +114,18 @@ class MusicGenerator:
                 ):
                     return response.result
             except Exception as e:
-                print(f"Warning: AI model exception, using legacy method: {e}")
+                print(
+                    f"Warning: AI model exception, using legacy method: {e}"  # noqa: E501
+                )
         return self._generate_harmony_legacy(melody, style)
 
-    def _generate_harmony_legacy(self, melody: Melody, style: str) -> Harmony:  # type: ignore
+    def _generate_harmony_legacy(self, melody: Melody, style: str) -> Harmony:
         try:
             if self.model is None or self.tokenizer is None:
                 self.load_model()
                 if self.model is None or self.tokenizer is None:
                     # Fallback to basic harmony generation without AI
-                    return self._generate_basic_harmony(melody, style)  # type: ignore[unreachable]
+                    return self._generate_basic_harmony(melody, style)
 
             # Convert melody to token sequence
             melody_tokens = self._melody_to_tokens(melody)
@@ -129,7 +133,7 @@ class MusicGenerator:
             # Generate harmony tokens
             with torch.no_grad():
                 if self.tokenizer is None or self.model is None:
-                    return self._generate_basic_harmony(melody, style)  # type: ignore[unreachable]
+                    return self._generate_basic_harmony(melody, style)
                 inputs = self.tokenizer.encode(melody_tokens, return_tensors="pt")
 
                 outputs = self.model.generate(
@@ -141,11 +145,11 @@ class MusicGenerator:
                     repetition_penalty=self.config.repetition_penalty,
                     pad_token_id=self.tokenizer.eos_token_id,
                     do_sample=True,
-                )  # type: ignore
+                )  # type: ignore[attr-defined]
 
             # Decode and convert to harmony
             if self.tokenizer is None:
-                return self._generate_basic_harmony(melody, style)  # type: ignore[unreachable]
+                return self._generate_basic_harmony(melody, style)
             harmony_tokens = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             return self._tokens_to_harmony(harmony_tokens, style)
 
