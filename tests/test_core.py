@@ -577,3 +577,86 @@ class TestPluginManagerEdgeCases2:
         data = self.manager.merge_tracks([])
         assert isinstance(data, bytes)
         assert len(data) > 0
+
+
+class TestPluginManagement:
+    """Test plugin management functionality."""
+
+    def test_scan_plugins_empty_directory(self) -> None:
+        """Test scanning plugins in empty directory."""
+        plugin_manager = PluginManager()
+        plugins = plugin_manager.scan_plugins()
+        assert isinstance(plugins, list)
+
+    def test_get_plugin_recommendations(self) -> None:
+        """Test getting plugin recommendations."""
+        plugin_manager = PluginManager()
+        recommendations = plugin_manager.get_plugin_recommendations("pop", "piano")
+        assert isinstance(recommendations, list)
+
+    def test_load_plugin(self) -> None:
+        """Test loading a plugin."""
+        plugin_manager = PluginManager()
+        # Test with non-existent plugin
+        result = plugin_manager.load_plugin("nonexistent")
+        assert result is False
+
+    def test_get_plugin_parameters(self) -> None:
+        """Test getting plugin parameters."""
+        plugin_manager = PluginManager()
+        # Test with non-existent plugin
+        params = plugin_manager.get_plugin_parameters("nonexistent")
+        assert params is None
+
+    def test_set_plugin_parameter(self) -> None:
+        """Test setting plugin parameter."""
+        plugin_manager = PluginManager()
+        # Test with non-existent plugin
+        result = plugin_manager.set_plugin_parameter("nonexistent", "volume", 0.8)
+        assert result is False
+
+    def test_get_plugin_presets(self) -> None:
+        """Test getting plugin presets."""
+        plugin_manager = PluginManager()
+        # Test with non-existent plugin
+        presets = plugin_manager.get_presets("nonexistent")
+        assert isinstance(presets, list)
+
+    def test_get_plugin_info(self) -> None:
+        """Test getting plugin information."""
+        plugin_manager = PluginManager()
+        # Test with non-existent plugin
+        info = plugin_manager.get_plugin_info("nonexistent")
+        assert info is None
+
+
+class TestMIDIProcessing:
+    """Test MIDI processing functionality."""
+
+    def test_parse_midi_file_empty(self) -> None:
+        """Test parsing empty MIDI file."""
+        midi_generator = MIDIGenerator()
+        # Test with empty data
+        result = midi_generator.parse_midi_file(b"")
+        assert result is not None
+
+    def test_merge_tracks_empty(self) -> None:
+        """Test merging empty tracks."""
+        midi_generator = MIDIGenerator()
+        tracks = []
+        result = midi_generator.merge_tracks(tracks)
+        assert isinstance(result, bytes)
+
+    def test_create_midi_file(self) -> None:
+        """Test creating MIDI file."""
+        midi_generator = MIDIGenerator()
+        notes = [Note(pitch=60, velocity=80, duration=1.0, start_time=0.0)]
+        result = midi_generator.create_midi_from_notes(notes, tempo=120)
+        assert isinstance(result, bytes)
+
+    def test_create_midi_from_notes(self) -> None:
+        """Test creating MIDI from notes."""
+        midi_generator = MIDIGenerator()
+        notes = [Note(pitch=60, velocity=80, duration=1.0, start_time=0.0)]
+        result = midi_generator.create_midi_from_notes(notes)
+        assert isinstance(result, bytes)

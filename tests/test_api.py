@@ -1089,3 +1089,204 @@ class TestAPIConfig:
         response = self.client.post("/api/v1/config", json=config_update)
         # Depending on implementation, may ignore or error
         assert response.status_code in (200, 400, 422)
+
+
+class TestAIModelEndpoints:
+    """Test AI model management endpoints."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.client = TestClient(app)
+        app.state.music_generator = MusicGenerator()
+        app.state.midi_generator = MIDIGenerator()
+        app.state.plugin_manager = PluginManager()
+
+    def test_register_ai_model(self) -> None:
+        """Test registering a new AI model."""
+        model_config = {
+            "name": "test-model",
+            "type": "transformer",
+            "path": "/path/to/model",
+            "parameters": {"layers": 12, "heads": 8}
+        }
+        response = self.client.post("/api/v1/ai/models/register", json=model_config)
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+        assert "test-model" in data["message"]
+
+    def test_set_default_ai_model(self) -> None:
+        """Test setting default AI model."""
+        response = self.client.post("/api/v1/ai/models/test-model/set-default")
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+        assert "test-model" in data["default_model"]
+
+    def test_list_ai_models(self) -> None:
+        """Test listing AI models."""
+        response = self.client.get("/api/v1/ai/models")
+        assert response.status_code == 200
+        data = response.json()
+        assert "models" in data
+        assert "count" in data
+        assert "ai_models_enabled" in data
+
+    def test_generate_harmony_ai(self) -> None:
+        """Test AI harmony generation."""
+        request_data = {
+            "melody": [{"pitch": 60, "velocity": 80, "duration": 1.0, "start_time": 0.0}],
+            "style": "pop",
+            "tempo": 120,
+            "key": "C"
+        }
+        response = self.client.post("/api/v1/ai/generate/harmony", json=request_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert "success" in data
+
+    def test_generate_bass_ai(self) -> None:
+        """Test AI bass generation."""
+        request_data = {
+            "melody": [{"pitch": 60, "velocity": 80, "duration": 1.0, "start_time": 0.0}],
+            "style": "pop",
+            "tempo": 120,
+            "key": "C"
+        }
+        response = self.client.post("/api/v1/ai/generate/bass", json=request_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert "success" in data
+
+    def test_generate_drums_ai(self) -> None:
+        """Test AI drums generation."""
+        request_data = {
+            "melody": [{"pitch": 60, "velocity": 80, "duration": 1.0, "start_time": 0.0}],
+            "style": "pop",
+            "tempo": 120,
+            "key": "C"
+        }
+        response = self.client.post("/api/v1/ai/generate/drums", json=request_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert "success" in data
+
+
+class TestPluginEndpoints:
+    """Test plugin management endpoints."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.client = TestClient(app)
+        app.state.music_generator = MusicGenerator()
+        app.state.midi_generator = MIDIGenerator()
+        app.state.plugin_manager = PluginManager()
+
+    def test_list_plugins(self) -> None:
+        """Test listing plugins."""
+        response = self.client.get("/api/v1/plugins")
+        assert response.status_code == 200
+        data = response.json()
+        assert "plugins" in data
+        assert isinstance(data["plugins"], list)
+
+    def test_get_plugin_recommendations(self) -> None:
+        """Test getting plugin recommendations."""
+        response = self.client.get("/api/v1/plugins/recommendations?style=pop&instrument=piano")
+        assert response.status_code == 200
+        data = response.json()
+        assert "recommendations" in data
+        assert isinstance(data["recommendations"], list)
+
+    def test_load_plugin(self) -> None:
+        """Test loading a plugin."""
+        response = self.client.post("/api/v1/plugins/test-plugin/load")
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+
+    def test_get_plugin_parameters(self) -> None:
+        """Test getting plugin parameters."""
+        response = self.client.get("/api/v1/plugins/test-plugin/parameters")
+        assert response.status_code == 200
+        data = response.json()
+        assert "parameters" in data
+
+    def test_set_plugin_parameter(self) -> None:
+        """Test setting plugin parameter."""
+        response = self.client.post("/api/v1/plugins/test-plugin/parameters/volume", params={"value": 0.8})
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+
+    def test_get_plugin_presets(self) -> None:
+        """Test getting plugin presets."""
+        response = self.client.get("/api/v1/plugins/test-plugin/presets")
+        assert response.status_code == 200
+        data = response.json()
+        assert "presets" in data
+
+    def test_get_plugin_info(self) -> None:
+        """Test getting plugin information."""
+        response = self.client.get("/api/v1/plugins/test-plugin")
+        assert response.status_code == 200
+        data = response.json()
+        assert "name" in data
+        assert "version" in data
+
+
+class TestConfigEndpoints:
+    """Test configuration management endpoints."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.client = TestClient(app)
+        app.state.music_generator = MusicGenerator()
+        app.state.midi_generator = MIDIGenerator()
+        app.state.plugin_manager = PluginManager()
+
+    def test_get_config(self) -> None:
+        """Test getting configuration."""
+        response = self.client.get("/api/v1/config")
+        assert response.status_code == 200
+        data = response.json()
+        assert "config" in data
+
+    def test_update_config(self) -> None:
+        """Test updating configuration."""
+        config_update = {
+            "ai_models_enabled": True,
+            "default_model": "test-model",
+            "max_batch_size": 4
+        }
+        response = self.client.post("/api/v1/config", json=config_update)
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+
+
+class TestHealthEndpoints:
+    """Test health and status endpoints."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.client = TestClient(app)
+        app.state.music_generator = MusicGenerator()
+        app.state.midi_generator = MIDIGenerator()
+        app.state.plugin_manager = PluginManager()
+
+    def test_health_check(self) -> None:
+        """Test health check endpoint."""
+        response = self.client.get("/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert "status" in data
+        assert data["status"] == "healthy"
+
+    def test_ready_check(self) -> None:
+        """Test readiness check endpoint."""
+        response = self.client.get("/ready")
+        assert response.status_code == 200
+        data = response.json()
+        assert "status" in data
+        assert data["status"] == "ready"

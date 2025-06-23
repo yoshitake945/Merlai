@@ -14,6 +14,7 @@ from merlai.core.ai_models import (
     ModelConfig,
     ModelType,
 )
+from merlai.core.music import MusicGenerator
 from merlai.core.types import Bass, Drums, Harmony, Melody, Note
 
 
@@ -753,6 +754,138 @@ class TestAIModelManagerEdgeCases:
             assert resp.success is False
             assert resp.error_message is not None
             assert "error" in resp.error_message.lower()
+
+
+class TestAIModelManagement:
+    """Test AI model management functionality."""
+
+    def test_register_ai_model(self) -> None:
+        """Test registering a new AI model."""
+        generator = MusicGenerator()
+        config = ModelConfig(
+            name="test-model",
+            type=ModelType.HUGGINGFACE,
+            model_path="/path/to/model",
+            parameters={"layers": 12, "heads": 8}
+        )
+        result = generator.register_ai_model(config)
+        assert result is True
+        # Note: MusicGenerator may not have ai_models attribute directly accessible
+        # This test may need adjustment based on actual implementation
+
+    def test_set_default_ai_model(self) -> None:
+        """Test setting default AI model."""
+        generator = MusicGenerator()
+        config = ModelConfig(
+            name="test-model",
+            type=ModelType.HUGGINGFACE,
+            model_path="/path/to/model",
+            parameters={"layers": 12, "heads": 8}
+        )
+        generator.register_ai_model(config)
+        result = generator.set_default_ai_model("test-model")
+        assert result is True
+        # Note: MusicGenerator may not have default_ai_model attribute directly accessible
+        # This test may need adjustment based on actual implementation
+
+    def test_list_ai_models(self) -> None:
+        """Test listing AI models."""
+        generator = MusicGenerator()
+        config1 = ModelConfig(
+            name="model1",
+            type=ModelType.HUGGINGFACE,
+            model_path="/path/to/model1",
+            parameters={}
+        )
+        config2 = ModelConfig(
+            name="model2",
+            type=ModelType.EXTERNAL_API,
+            model_path="/path/to/model2",
+            parameters={}
+        )
+        generator.register_ai_model(config1)
+        generator.register_ai_model(config2)
+        
+        models = generator.list_ai_models()
+        assert len(models) == 2
+        assert "model1" in models
+        assert "model2" in models
+
+    def test_ai_model_not_found(self) -> None:
+        """Test behavior when AI model is not found."""
+        generator = MusicGenerator()
+        result = generator.set_default_ai_model("nonexistent")
+        assert result is False
+
+    def test_ai_model_generation_with_model(self) -> None:
+        """Test AI model-based generation."""
+        generator = MusicGenerator()
+        config = ModelConfig(
+            name="test-model",
+            type=ModelType.HUGGINGFACE,
+            model_path="/path/to/model",
+            parameters={"layers": 12, "heads": 8}
+        )
+        generator.register_ai_model(config)
+        generator.set_default_ai_model("test-model")
+        generator.use_ai_models = True
+
+        melody = Melody(
+            notes=[Note(pitch=60, velocity=80, duration=1.0, start_time=0.0)],
+            tempo=120,
+            key="C"
+        )
+
+        # Test AI harmony generation
+        harmony = generator.generate_harmony(melody, "pop")
+        assert harmony is not None
+
+        # Test AI bass generation
+        bass = generator.generate_bass_line(melody, harmony)
+        assert bass is not None
+
+        # Test AI drums generation
+        drums = generator.generate_drums(melody, 120)
+        assert drums is not None
+
+
+class TestAIModelErrorHandling:
+    """Test AI model error handling."""
+
+    def test_invalid_model_config(self) -> None:
+        """Test handling of invalid model configuration."""
+        generator = MusicGenerator()
+        # Test with invalid config
+        result = generator.register_ai_model(None)  # type: ignore
+        assert result is False
+
+    def test_model_loading_error(self) -> None:
+        """Test handling of model loading errors."""
+        generator = MusicGenerator()
+        config = ModelConfig(
+            name="invalid-model",
+            type=ModelType.HUGGINGFACE,
+            model_path="/nonexistent/path",
+            parameters={}
+        )
+        result = generator.register_ai_model(config)
+        # Should handle gracefully
+        assert result is False
+
+    def test_generation_without_models(self) -> None:
+        """Test generation when no AI models are available."""
+        generator = MusicGenerator()
+        generator.use_ai_models = True
+        
+        melody = Melody(
+            notes=[Note(pitch=60, velocity=80, duration=1.0, start_time=0.0)],
+            tempo=120,
+            key="C"
+        )
+
+        # Should fall back to rule-based generation
+        harmony = generator.generate_harmony(melody, "pop")
+        assert harmony is not None
 
 
 class TestAIModelIntegration:
