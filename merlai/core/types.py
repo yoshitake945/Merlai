@@ -4,6 +4,7 @@ Core data types for music generation.
 
 from dataclasses import dataclass
 from typing import List, Optional
+
 from pydantic import BaseModel
 
 

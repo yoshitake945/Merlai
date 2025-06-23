@@ -3,7 +3,7 @@ Music generation core functionality.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Any
+from typing import Any, List, Optional
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer

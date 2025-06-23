@@ -2,14 +2,15 @@
 Plugin management system for sound plugins.
 """
 
-import os
 import json
-from typing import List, Dict, Optional, Any
+import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
-from .types import Song, Note, Track
+
+from .types import Note, Song, Track
 
 
 @dataclass

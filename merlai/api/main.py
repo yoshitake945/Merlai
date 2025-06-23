@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 

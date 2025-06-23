@@ -4,21 +4,23 @@ API routes for Merlai music generation service.
 
 import base64
 from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException
-from ..core.music import MusicGenerator
+
+from ..core.ai_models import ModelConfig
 from ..core.midi import MIDIGenerator, Track
+from ..core.music import MusicGenerator
 from ..core.plugins import PluginManager
 from ..core.types import (
-    Note,
-    Chord,
-    Harmony,
-    Melody,
     Bass,
+    Chord,
     Drums,
     GenerationRequest,
     GenerationResponse,
+    Harmony,
+    Melody,
+    Note,
 )
-from ..core.ai_models import ModelConfig
 
 router = APIRouter()
 
@@ -123,12 +125,18 @@ async def generate_music(
                 duration=4.0,  # TODO: Calculate actual duration
                 success=True,
             )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
-    except HTTPException as e:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        except Exception:
+            return GenerationResponse(
+                success=False,
+                error_message="An error occurred during music generation.",
+                duration=0.0,
+            )
+    except Exception:
+        return GenerationResponse(
+            success=False,
+            error_message="An error occurred during music generation.",
+            duration=0.0,
+        )
 
 
 # AI Model Management Endpoints
