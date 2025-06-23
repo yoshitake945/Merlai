@@ -125,5 +125,33 @@ jobs:
     needs: [build]
     if: always()
     steps:
-      - name: Dummy Slack notify (disabled)
-        run: echo "Slack notification is temporarily disabled." 
+      - name: Notify Slack on Success
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          channel: '#merlai-ci'
+          text: |
+            ✅ **Merlai CI Pipeline Succeeded**
+            • Repository: ${{ github.repository }}
+            • Branch: ${{ github.ref_name }}
+            • Commit: ${{ github.sha }}
+            • Triggered by: ${{ github.actor }}
+            • Workflow: ${{ github.workflow }}
+
+      - name: Notify Slack on Failure
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          channel: '#merlai-ci'
+          text: |
+            ❌ **Merlai CI Pipeline Failed**
+            • Repository: ${{ github.repository }}
+            • Branch: ${{ github.ref_name }}
+            • Commit: ${{ github.sha }}
+            • Triggered by: ${{ github.actor }}
+            • Workflow: ${{ github.workflow }}
+            • [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) 
