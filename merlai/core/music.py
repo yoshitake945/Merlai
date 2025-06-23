@@ -7,6 +7,8 @@ from typing import List, Optional
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers.modeling_utils import PreTrainedModel
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 from .ai_models import AIModelManager, GenerationRequest, ModelConfig, ModelType
 from .types import Bass, Chord, Drums, Harmony, Melody, Note
@@ -32,8 +34,8 @@ class MusicGenerator:
     ) -> None:
         """Initialize the music generator."""
         self.model_path = model_path or "microsoft/DialoGPT-medium"
-        self.tokenizer: Optional[AutoTokenizer] = None
-        self.model: Optional[AutoModelForCausalLM] = None
+        self.tokenizer: Optional[PreTrainedTokenizerBase] = None
+        self.model: Optional[PreTrainedModel] = None
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.config = GenerationConfig()
 
@@ -75,7 +77,7 @@ class MusicGenerator:
             self.model = AutoModelForCausalLM.from_pretrained(self.model_path)
             if self.model is not None:
                 self.model.to(self.device)  # type: ignore
-                self.model.eval()  # type: ignore
+                self.model.eval()
         except Exception as e:
             print(e)
             raise RuntimeError(f"Failed to load model: {e}")
@@ -103,20 +105,14 @@ class MusicGenerator:
             try:
                 response = self.ai_model_manager.generate_harmony(model_name, request)
 
-                if response.success and response.result:
-                    if isinstance(response.result, Harmony):
-                        return response.result
-                    else:
-                        raise RuntimeError("AI model did not return Harmony type")
-                else:
-                    # Fallback to legacy method if AI model fails
-                    print(
-                        f"Warning: AI model failed, using legacy method: {response.error_message}"  # noqa: E501
-                    )
+                if (
+                    response.success
+                    and response.result
+                    and isinstance(response.result, Harmony)
+                ):
+                    return response.result
             except Exception as e:
-                # Fallback to legacy method on any exception
                 print(f"Warning: AI model exception, using legacy method: {e}")
-        # Legacy method
         return self._generate_harmony_legacy(melody, style)
 
     def _generate_harmony_legacy(self, melody: Melody, style: str) -> Harmony:
@@ -135,25 +131,23 @@ class MusicGenerator:
             with torch.no_grad():
                 if self.tokenizer is None or self.model is None:
                     return self._generate_basic_harmony(melody, style)
-                inputs = self.tokenizer.encode(melody_tokens, return_tensors="pt").to(  # type: ignore # noqa: E501
-                    self.device
-                )
+                inputs = self.tokenizer.encode(melody_tokens, return_tensors="pt")
 
-                outputs = self.model.generate(  # type: ignore
+                outputs = self.model.generate(
                     inputs,
                     max_length=self.config.max_length,
                     temperature=self.config.temperature,
                     top_p=self.config.top_p,
                     top_k=self.config.top_k,
                     repetition_penalty=self.config.repetition_penalty,
-                    pad_token_id=self.tokenizer.eos_token_id,  # type: ignore
+                    pad_token_id=self.tokenizer.eos_token_id,
                     do_sample=True,
-                )
+                )  # type: ignore
 
             # Decode and convert to harmony
             if self.tokenizer is None:
                 return self._generate_basic_harmony(melody, style)
-            harmony_tokens = self.tokenizer.decode(outputs[0], skip_special_tokens=True)  # type: ignore # noqa: E501
+            harmony_tokens = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             return self._tokens_to_harmony(harmony_tokens, style)
 
         except Exception as e:
@@ -198,19 +192,16 @@ class MusicGenerator:
                 top_p=self.config.top_p,
             )
 
-            response = self.ai_model_manager.generate_bass(model_name, request)
-
-            if response.success and response.result:
-                if isinstance(response.result, Bass):
+            try:
+                response = self.ai_model_manager.generate_bass(model_name, request)
+                if (
+                    response.success
+                    and response.result
+                    and isinstance(response.result, Bass)
+                ):
                     return response.result
-                else:
-                    raise RuntimeError("AI model did not return Bass type")
-            else:
-                # Fallback to legacy method if AI model fails
-                print(
-                    f"Warning: AI model failed, using legacy method: {response.error_message}"  # noqa: E501
-                )
-        # Legacy method
+            except Exception as e:
+                print(f"Warning: AI model exception, using legacy method: {e}")
         return self._generate_bass_line_legacy(melody, harmony)
 
     def _generate_bass_line_legacy(self, melody: Melody, harmony: Harmony) -> Bass:

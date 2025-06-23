@@ -147,11 +147,7 @@ class HuggingFaceModel(AIModelInterface):
 
     def is_available(self) -> bool:
         """Check if the model is available."""
-        if self.tokenizer is None:
-            return False
-        if self.model is None:
-            return False
-        return True
+        return self.tokenizer is not None and self.model is not None
 
     def get_model_info(self) -> Dict[str, Any]:
         """Get model information."""
@@ -175,10 +171,10 @@ class HuggingFaceModel(AIModelInterface):
                 generation_time=time.time() - start_time,
             )
 
+        chords = []
         try:
             # Placeholder implementation for now
             # In a real implementation, this would use the actual model
-            chords = []
             for note in request.melody.notes:
                 chord = Chord(
                     root=note.pitch,
@@ -187,27 +183,23 @@ class HuggingFaceModel(AIModelInterface):
                     start_time=note.start_time,
                 )
                 chords.append(chord)
-
             harmony = Harmony(chords=chords, style=request.style, key=request.key)
-
-            generation_time = time.time() - start_time
-
-            return GenerationResponse(
-                success=True,
-                result=harmony,
-                model_name=self.model_name,
-                generation_time=generation_time,
-                metadata={"method": "placeholder"},
-            )
-
+            success = True
+            error_message = None
         except Exception as e:
             logger.error(f"Error generating harmony: {e}")
-            return GenerationResponse(
-                success=False,
-                error_message=str(e),
-                model_name=self.model_name,
-                generation_time=time.time() - start_time,
-            )
+            harmony = None
+            success = False
+            error_message = str(e)
+        generation_time = time.time() - start_time
+        return GenerationResponse(
+            success=success,
+            result=harmony,
+            error_message=error_message,
+            model_name=self.model_name,
+            generation_time=generation_time,
+            metadata={"method": "placeholder"},
+        )
 
     def generate_bass(self, request: GenerationRequest) -> GenerationResponse:
         """Generate bass line using Hugging Face model."""
@@ -221,6 +213,9 @@ class HuggingFaceModel(AIModelInterface):
                 generation_time=time.time() - start_time,
             )
 
+        bass = None
+        success = False
+        error_message = None
         try:
             # Placeholder implementation
             bass_notes = [
@@ -232,24 +227,18 @@ class HuggingFaceModel(AIModelInterface):
                 )
             ]
             bass = Bass(notes=bass_notes)
-
-            generation_time = time.time() - start_time
-
-            return GenerationResponse(
-                success=True,
-                result=bass,
-                model_name=self.model_name,
-                generation_time=generation_time,
-            )
-
+            success = True
         except Exception as e:
             logger.error(f"Error generating bass: {e}")
-            return GenerationResponse(
-                success=False,
-                error_message=str(e),
-                model_name=self.model_name,
-                generation_time=time.time() - start_time,
-            )
+            error_message = str(e)
+        generation_time = time.time() - start_time
+        return GenerationResponse(
+            success=success,
+            result=bass,
+            error_message=error_message,
+            model_name=self.model_name,
+            generation_time=generation_time,
+        )
 
     def generate_drums(self, request: GenerationRequest) -> GenerationResponse:
         """Generate drum patterns using Hugging Face model."""

@@ -141,7 +141,7 @@ def generate(
             tracks.append(
                 Track(
                     name="Bass",
-                    notes=generated_parts["bass"],
+                    notes=generated_parts["bass"].notes,
                     channel=2,
                     instrument=32,  # Acoustic Bass
                 )
@@ -151,7 +151,7 @@ def generate(
             tracks.append(
                 Track(
                     name="Drums",
-                    notes=generated_parts["drums"],
+                    notes=generated_parts["drums"].notes,
                     channel=9,  # MIDI channel 10 for drums
                     instrument=0,
                 )
