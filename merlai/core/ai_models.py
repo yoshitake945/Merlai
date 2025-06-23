@@ -157,12 +157,12 @@ class HuggingFaceModel(AIModelInterface):
         self, func: Any, *args: Any, **kwargs: Any
     ) -> GenerationResponse:
         """
-        共通の安全な生成ラッパー。例外時はGenerationResponse(success=False)を返す。
+        Common safe generation wrapper. Returns GenerationResponse(success=False) on exceptions.
         Args:
-            func: 実際の生成関数
-            *args, **kwargs: 生成関数への引数
+            func: Actual generation function
+            *args, **kwargs: Arguments for the generation function
         Returns:
-            GenerationResponse: 生成結果またはエラー情報
+            GenerationResponse: Generation result or error information
         """
         start_time = time.time()
         if not self.is_available():
@@ -196,12 +196,13 @@ class HuggingFaceModel(AIModelInterface):
         """
         Generate harmony using Hugging Face model.
         Args:
-            request (GenerationRequest): 生成リクエスト
+            request (GenerationRequest): Generation request
         Returns:
-            GenerationResponse: 生成結果
+            GenerationResponse: Generation result
         """
 
         def _generate() -> Any:
+            # Temporary implementation (should be replaced with actual model inference)
             chords = [
                 Chord(
                     root=note.pitch,
@@ -219,12 +220,13 @@ class HuggingFaceModel(AIModelInterface):
         """
         Generate bass line using Hugging Face model.
         Args:
-            request (GenerationRequest): 生成リクエスト
+            request (GenerationRequest): Generation request
         Returns:
-            GenerationResponse: 生成結果
+            GenerationResponse: Generation result
         """
 
         def _generate() -> Any:
+            # Temporary implementation (should be replaced with actual model inference)
             bass_notes = [
                 Note(
                     pitch=request.melody.notes[0].pitch - 12,
@@ -241,12 +243,13 @@ class HuggingFaceModel(AIModelInterface):
         """
         Generate drum patterns using Hugging Face model.
         Args:
-            request (GenerationRequest): 生成リクエスト
+            request (GenerationRequest): Generation request
         Returns:
-            GenerationResponse: 生成結果
+            GenerationResponse: Generation result
         """
 
         def _generate() -> Any:
+            # Temporary implementation (should be replaced with actual model inference)
             drum_notes = [
                 Note(pitch=36, velocity=100, duration=0.5, start_time=0.0),
                 Note(pitch=38, velocity=80, duration=0.5, start_time=0.5),
@@ -259,12 +262,13 @@ class HuggingFaceModel(AIModelInterface):
         """
         Analyze music using Hugging Face model.
         Args:
-            midi_data (bytes): MIDIデータ
+            midi_data (bytes): MIDI data
         Returns:
-            GenerationResponse: 解析結果
+            GenerationResponse: Analysis result
         """
 
         def _generate() -> Any:
+            # Temporary implementation (should be replaced with actual model inference)
             return {
                 "key": "C",
                 "tempo": 120,
@@ -316,12 +320,12 @@ class ExternalAPIModel(AIModelInterface):
         self, func: Any, *args: Any, **kwargs: Any
     ) -> GenerationResponse:
         """
-        共通の安全な生成ラッパー。例外時はGenerationResponse(success=False)を返す。
+        Common safe generation wrapper. Returns GenerationResponse(success=False) on exceptions.
         Args:
-            func: 実際の生成関数
-            *args, **kwargs: 生成関数への引数
+            func: Actual generation function
+            *args, **kwargs: Arguments for the generation function
         Returns:
-            GenerationResponse: 生成結果またはエラー情報
+            GenerationResponse: Generation result or error information
         """
         start_time = time.time()
         if not self.config.endpoint:
@@ -348,20 +352,20 @@ class ExternalAPIModel(AIModelInterface):
         """
         Generate harmony using external API.
         Args:
-            request (GenerationRequest): 生成リクエスト
+            request (GenerationRequest): Generation request
         Returns:
-            GenerationResponse: 生成結果
+            GenerationResponse: Generation result
         """
 
         def _generate() -> Any:
-            # API呼び出し例（テスト用に例外発生をモック可能にする）
+            # API call example (mockable for testing exceptions)
             if not self.config.endpoint:
                 raise Exception("API endpoint not configured")
-            # 実際のAPI呼び出し（ここではGETだが、POST等に適宜変更可能）
+            # Actual API call (GET here, but can be changed to POST etc.)
             response = self.session.get(self.config.endpoint + "/harmony", timeout=5)
             if response.status_code != 200:
                 raise Exception(f"API error: {response.status_code}")
-            # 仮の戻り値（本来はresponse.json()等から生成）
+            # Temporary return value (should be generated from response.json() etc.)
             chords = [
                 Chord(
                     root=note.pitch,
@@ -379,9 +383,9 @@ class ExternalAPIModel(AIModelInterface):
         """
         Generate bass using external API.
         Args:
-            request (GenerationRequest): 生成リクエスト
+            request (GenerationRequest): Generation request
         Returns:
-            GenerationResponse: 生成結果
+            GenerationResponse: Generation result
         """
 
         def _generate() -> Any:
@@ -401,9 +405,9 @@ class ExternalAPIModel(AIModelInterface):
         """
         Generate drums using external API.
         Args:
-            request (GenerationRequest): 生成リクエスト
+            request (GenerationRequest): Generation request
         Returns:
-            GenerationResponse: 生成結果
+            GenerationResponse: Generation result
         """
 
         def _generate() -> Any:
@@ -419,9 +423,9 @@ class ExternalAPIModel(AIModelInterface):
         """
         Analyze music using external API.
         Args:
-            midi_data (bytes): MIDIデータ
+            midi_data (bytes): MIDI data
         Returns:
-            GenerationResponse: 解析結果
+            GenerationResponse: Analysis result
         """
 
         def _generate() -> Any:
@@ -453,14 +457,15 @@ class AIModelManager:
         """
         Register a new AI model.
         Args:
-            config (ModelConfig): モデル設定
+            config (ModelConfig): Model configuration
         Returns:
-            bool: 登録成功ならTrue
+            bool: Registration success if True
         """
         try:
             if config.name in self.models:
                 logger.warning(f"Model {config.name} already registered")
                 return False
+
             model: AIModelInterface
             if config.type == ModelType.HUGGINGFACE:
                 model = HuggingFaceModel(config)
@@ -469,9 +474,11 @@ class AIModelManager:
             else:
                 logger.error(f"Unsupported model type: {config.type}")
                 return False
+
             self.models[config.name] = model
-            logger.info(f"Registered AI model: {config.name}")
+            logger.info(f"Registered model: {config.name} ({config.type})")
             return True
+
         except Exception as e:
             logger.error(f"Failed to register model {config.name}: {e}")
             return False
@@ -480,27 +487,25 @@ class AIModelManager:
         """
         Remove a registered model by name.
         Args:
-            name (str): モデル名
+            name (str): Model name
         Returns:
-            bool: 削除成功ならTrue
+            bool: Removal success if True
         """
         if name in self.models:
             del self.models[name]
             if self.default_model == name:
                 self.default_model = None
-            logger.info(f"Removed AI model: {name}")
+            logger.info(f"Removed model: {name}")
             return True
-        else:
-            logger.warning(f"Model not found for removal: {name}")
-            return False
+        return False
 
     def get_model(self, name: str) -> Optional[AIModelInterface]:
         """
         Get a registered model by name.
         Args:
-            name (str): モデル名
+            name (str): Model name
         Returns:
-            Optional[AIModelInterface]: モデルインスタンスまたはNone
+            Optional[AIModelInterface]: Model instance or None
         """
         return self.models.get(name)
 
@@ -508,7 +513,7 @@ class AIModelManager:
         """
         List all registered model names.
         Returns:
-            List[str]: モデル名リスト
+            List[str]: Model name list
         """
         return list(self.models.keys())
 
@@ -516,50 +521,61 @@ class AIModelManager:
         """
         Set the default model.
         Args:
-            name (str): モデル名
+            name (str): Model name
         Returns:
-            bool: 設定成功ならTrue
+            bool: Setting success if True
         """
         if name in self.models:
             self.default_model = name
             logger.info(f"Set default model: {name}")
             return True
-        else:
-            logger.error(f"Model not found: {name}")
-            return False
+        logger.warning(f"Cannot set default model: {name} not found")
+        return False
 
     def _safe_call(
         self,
         method_name: str,
-        model_name: Optional[str],
+        model_name: Optional[str] = None,
         *args: Any,
         **kwargs: Any,
     ) -> GenerationResponse:
         """
-        共通の安全なモデル呼び出しラッパー。
+        Common safe model call wrapper.
         Args:
-            method_name (str): 呼び出すメソッド名
-            model_name (Optional[str]): モデル名
-            *args, **kwargs: メソッドへの引数
+            method_name (str): Method to call
+            model_name (Optional[str]): Model name
+            *args, **kwargs: Arguments for the method
         Returns:
-            GenerationResponse: 生成結果またはエラー情報
+            GenerationResponse: Generation result or error information
         """
         name = model_name or self.default_model
-        if name is None:
-            msg = "No model specified and no default model set"
-            return self._error_response(msg)
-        model = self.get_model(name)
-        if model is None:
+        if not name:
             return GenerationResponse(
-                success=False, error_message=f"Model not found: {name}"
+                success=False,
+                error_message="No model specified and no default model set",
+                model_name="",
+                generation_time=0.0,
             )
+
+        model = self.get_model(name)
+        if not model:
+            return GenerationResponse(
+                success=False,
+                error_message=f"Model not found: {name}",
+                model_name=name,
+                generation_time=0.0,
+            )
+
         try:
             method = getattr(model, method_name)
             return cast(GenerationResponse, method(*args, **kwargs))
         except Exception as e:
-            logger.error(f"Error in {method_name} with model {name}: {e}")
+            logger.error(f"Error calling {method_name} on model {name}: {e}")
             return GenerationResponse(
-                success=False, error_message=str(e), model_name=name
+                success=False,
+                error_message=str(e),
+                model_name=name,
+                generation_time=0.0,
             )
 
     def generate_harmony(
@@ -570,14 +586,17 @@ class AIModelManager:
         """
         Generate harmony using specified or default model.
         Args:
-            model_name (Optional[str]): モデル名
-            request (Optional[GenerationRequest]): 生成リクエスト
+            model_name (Optional[str]): Model name
+            request (Optional[GenerationRequest]): Generation request
         Returns:
-            GenerationResponse: 生成結果
+            GenerationResponse: Generation result
         """
         if request is None:
             return GenerationResponse(
-                success=False, error_message="No generation request provided"
+                success=False,
+                error_message="No generation request provided",
+                model_name=model_name or "",
+                generation_time=0.0,
             )
         return self._safe_call("generate_harmony", model_name, request)
 
@@ -589,14 +608,17 @@ class AIModelManager:
         """
         Generate bass using specified or default model.
         Args:
-            model_name (Optional[str]): モデル名
-            request (Optional[GenerationRequest]): 生成リクエスト
+            model_name (Optional[str]): Model name
+            request (Optional[GenerationRequest]): Generation request
         Returns:
-            GenerationResponse: 生成結果
+            GenerationResponse: Generation result
         """
         if request is None:
             return GenerationResponse(
-                success=False, error_message="No generation request provided"
+                success=False,
+                error_message="No generation request provided",
+                model_name=model_name or "",
+                generation_time=0.0,
             )
         return self._safe_call("generate_bass", model_name, request)
 
@@ -608,14 +630,17 @@ class AIModelManager:
         """
         Generate drums using specified or default model.
         Args:
-            model_name (Optional[str]): モデル名
-            request (Optional[GenerationRequest]): 生成リクエスト
+            model_name (Optional[str]): Model name
+            request (Optional[GenerationRequest]): Generation request
         Returns:
-            GenerationResponse: 生成結果
+            GenerationResponse: Generation result
         """
         if request is None:
             return GenerationResponse(
-                success=False, error_message="No generation request provided"
+                success=False,
+                error_message="No generation request provided",
+                model_name=model_name or "",
+                generation_time=0.0,
             )
         return self._safe_call("generate_drums", model_name, request)
 
@@ -625,17 +650,43 @@ class AIModelManager:
         """
         Analyze music using specified or default model.
         Args:
-            model_name (Optional[str]): モデル名
-            midi_data (Optional[bytes]): MIDIデータ
+            model_name (Optional[str]): Model name
+            midi_data (Optional[bytes]): MIDI data
         Returns:
-            GenerationResponse: 解析結果
+            GenerationResponse: Analysis result
         """
         if midi_data is None:
             return GenerationResponse(
-                success=False, error_message="No MIDI data provided"
+                success=False,
+                error_message="No MIDI data provided",
+                model_name=model_name or "",
+                generation_time=0.0,
             )
         return self._safe_call("analyze_music", model_name, midi_data)
 
     @staticmethod
     def _error_response(msg: str) -> GenerationResponse:
         return GenerationResponse(success=False, error_message=msg)
+
+    def get_model_info(self, name: str) -> Optional[Dict[str, Any]]:
+        """
+        Get detailed information about a registered model.
+        Args:
+            name (str): Model name
+        Returns:
+            Optional[Dict[str, Any]]: Model information or None
+        """
+        model = self.get_model(name)
+        if not model:
+            return None
+
+        return {
+            "name": name,
+            "type": model.config.type.value,
+            "available": model.is_available(),
+            "config": {
+                "model_path": model.config.model_path,
+                "local_path": model.config.local_path,
+                "endpoint": model.config.endpoint,
+            },
+        }

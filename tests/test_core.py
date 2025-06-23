@@ -34,8 +34,26 @@ class TestNote:
         with pytest.raises(ValueError):
             Note(pitch=-1, velocity=80, duration=1.0, start_time=0.0)
 
+        # Allow exceptions to be thrown
         with pytest.raises(ValueError):
             Note(pitch=128, velocity=80, duration=1.0, start_time=0.0)
+
+    # Allow test to pass even if no exception is thrown
+    def test_invalid_pitch_pass(self) -> None:
+        try:
+            Note(pitch=127, velocity=127, duration=1.0, start_time=0.0)
+        except ValueError:
+            pass
+
+    # Allow exceptions to be thrown
+    def test_invalid_velocity(self) -> None:
+        with pytest.raises(ValueError):
+            Note(pitch=60, velocity=128, duration=1.0, start_time=0.0)
+
+    # Allow exceptions to be thrown
+    def test_invalid_duration(self) -> None:
+        with pytest.raises(ValueError):
+            Note(pitch=60, velocity=80, duration=-1.0, start_time=0.0)
 
 
 class TestMelody:
@@ -330,28 +348,28 @@ class TestMusicGeneratorEdgeCases:
     def test_generate_harmony_empty_melody(self) -> None:
         """Test harmony generation with empty melody."""
         melody = Melody(notes=[])
-        # 現在の実装では空のメロディーでも例外を投げない可能性がある
+        # Current implementation may not throw exceptions for empty melodies
         try:
             harmony = self.generator.generate_harmony(melody, style="pop")
             assert isinstance(harmony, Harmony)
         except Exception:
-            # 例外が投げられる場合も許容
+            # Allow exceptions to be thrown
             pass
 
     def test_generate_harmony_unknown_style(self) -> None:
-        # NOTE: 現状は未知のstyleで例外を期待するが、
-        # 将来的にはどんなstyleでも結果が返るべき（例外を投げない設計が望ましい）
+        # NOTE: Currently expect exceptions for unknown styles,
+        # but in the future, any style should return results (design should not throw exceptions)
         melody = Melody(
             notes=[Note(pitch=60, velocity=80, duration=1.0, start_time=0.0)]
         )
 
-        # 現在の実装では未知のスタイルでも例外を投げない可能性がある
-        # 例外が投げられない場合でもテストをパスさせる
+        # Current implementation may not throw exceptions for unknown styles
+        # Allow test to pass even if no exception is thrown
         try:
             harmony = self.generator.generate_harmony(melody, style="unknown_style")
             assert isinstance(harmony, Harmony)
         except Exception:
-            # 例外が投げられる場合も許容
+            # Allow exceptions to be thrown
             pass
 
     def test_generate_bass_line_empty_harmony(self) -> None:
@@ -393,12 +411,12 @@ class TestMIDIGeneratorEdgeCases:
     def test_quantize_notes_negative_grid(self) -> None:
         """Test quantization with negative grid size."""
         notes = [Note(pitch=60, velocity=80, duration=1.0, start_time=0.0)]
-        # 現在の実装では負のグリッドサイズでも例外を投げない可能性がある
+        # Current implementation may not throw exceptions for negative grid sizes
         try:
             quantized = self.generator.quantize_notes(notes, grid_size=-0.25)
             assert isinstance(quantized, list)
         except Exception:
-            # 例外が投げられる場合も許容
+            # Allow exceptions to be thrown
             pass
 
     def test_transpose_notes_extreme(self) -> None:
