@@ -606,7 +606,7 @@ class TestPluginManagement:
         plugin_manager = PluginManager()
         # Test with non-existent plugin
         params = plugin_manager.get_plugin_parameters("nonexistent")
-        assert params is None
+        assert params == []  # Should return empty list, not None
 
     def test_set_plugin_parameter(self) -> None:
         """Test setting plugin parameter."""

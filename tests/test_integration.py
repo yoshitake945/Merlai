@@ -237,63 +237,85 @@ class TestAIModelIntegration:
     def test_ai_model_registration_and_usage(self) -> None:
         """Test AI model registration and usage workflow."""
         # 1. Register AI models
-        hf_config = ModelConfig(
-            name="test-hf",
-            type=ModelType.HUGGINGFACE,
-            model_path="facebook/musicgen-small",
-        )
+        with (
+            patch("merlai.core.ai_models.HuggingFaceModel") as mock_hf,
+            patch("merlai.core.ai_models.ExternalAPIModel") as mock_api,
+        ):
+            mock_hf_model = Mock()
+            mock_api_model = Mock()
 
-        api_config = ModelConfig(
-            name="test-api",
-            type=ModelType.EXTERNAL_API,
-            endpoint="https://api.example.com/generate",
-        )
+            # Mock the generate_drums method to return a proper Drums object
+            from merlai.core.types import Drums, Note
 
-        # Register models
-        success_hf = self.music_generator.register_ai_model(hf_config)
-        success_api = self.music_generator.register_ai_model(api_config)
+            mock_drums = Drums(
+                notes=[Note(pitch=36, velocity=80, duration=0.5, start_time=0.0)]
+            )
+            mock_response = Mock()
+            mock_response.success = True
+            mock_response.result = mock_drums
+            mock_hf_model.generate_drums.return_value = mock_response
+            mock_api_model.generate_drums.return_value = mock_response
 
-        assert success_hf is True
-        assert success_api is True
+            mock_hf.return_value = mock_hf_model
+            mock_api.return_value = mock_api_model
 
-        # 2. List models
-        models = self.music_generator.list_ai_models()
-        assert "test-hf" in models
-        assert "test-api" in models
-        assert len(models) >= 2
+            hf_config = ModelConfig(
+                name="test-hf",
+                type=ModelType.HUGGINGFACE,
+                model_path="facebook/musicgen-small",
+            )
 
-        # 3. Set default model
-        success = self.music_generator.set_default_ai_model("test-hf")
-        assert success is True
+            api_config = ModelConfig(
+                name="test-api",
+                type=ModelType.EXTERNAL_API,
+                endpoint="https://api.example.com/generate",
+            )
 
-        # 4. Test AI generation (with fallback to basic generation)
-        melody = Melody(
-            notes=[
-                Note(pitch=60, velocity=80, duration=1.0, start_time=0.0),
-                Note(pitch=62, velocity=80, duration=1.0, start_time=1.0),
-            ]
-        )
+            # Register models
+            success_hf = self.music_generator.register_ai_model(hf_config)
+            success_api = self.music_generator.register_ai_model(api_config)
 
-        # Generate harmony using AI (will fallback to basic generation)
-        harmony = self.music_generator.generate_harmony(
-            melody, style="pop", model_name="test-hf"
-        )
-        assert isinstance(harmony, Harmony)
-        assert len(harmony.chords) >= 0
+            assert success_hf is True
+            assert success_api is True
 
-        # Generate bass using AI (will fallback to basic generation)
-        bass = self.music_generator.generate_bass_line(
-            melody, harmony, model_name="test-hf"
-        )
-        assert isinstance(bass, Bass)
-        assert len(bass.notes) >= 0
+            # 2. List models
+            models = self.music_generator.list_ai_models()
+            assert "test-hf" in models
+            assert "test-api" in models
+            assert len(models) >= 2
 
-        # Generate drums using AI (will fallback to basic generation)
-        drums = self.music_generator.generate_drums(
-            melody, tempo=120, model_name="test-hf"
-        )
-        assert isinstance(drums, Drums)
-        assert len(drums.notes) >= 0
+            # 3. Set default model
+            success = self.music_generator.set_default_ai_model("test-hf")
+            assert success is True
+
+            # 4. Test AI generation (with fallback to basic generation)
+            melody = Melody(
+                notes=[
+                    Note(pitch=60, velocity=80, duration=1.0, start_time=0.0),
+                    Note(pitch=62, velocity=80, duration=1.0, start_time=1.0),
+                ]
+            )
+
+            # Generate harmony using AI (will fallback to basic generation)
+            harmony = self.music_generator.generate_harmony(
+                melody, style="pop", model_name="test-hf"
+            )
+            assert isinstance(harmony, Harmony)
+            assert len(harmony.chords) >= 0
+
+            # Generate bass using AI (will fallback to basic generation)
+            bass = self.music_generator.generate_bass_line(
+                melody, harmony, model_name="test-hf"
+            )
+            assert isinstance(bass, Bass)
+            assert len(bass.notes) >= 0
+
+            # Generate drums using AI (will fallback to basic generation)
+            drums = self.music_generator.generate_drums(
+                melody, tempo=120, model_name="test-hf"
+            )
+            assert isinstance(drums, Drums)
+            assert len(drums.notes) >= 0
 
     def test_ai_model_fallback_mechanism(self) -> None:
         """Test AI model fallback when primary model fails."""
@@ -326,102 +348,142 @@ class TestAIModelIntegration:
     def test_multiple_ai_models_for_different_tasks(self) -> None:
         """Test using different AI models for different generation tasks."""
         # 1. Register multiple models
-        hf_config = ModelConfig(
-            name="harmony-model",
-            type=ModelType.HUGGINGFACE,
-            model_path="facebook/musicgen-small",
-        )
+        with (
+            patch("merlai.core.ai_models.HuggingFaceModel") as mock_hf,
+            patch("merlai.core.ai_models.ExternalAPIModel") as mock_api,
+        ):
+            mock_hf_model = Mock()
+            mock_api_model = Mock()
 
-        api_config = ModelConfig(
-            name="bass-model",
-            type=ModelType.EXTERNAL_API,
-            endpoint="https://api.example.com/generate",
-        )
+            # Mock the generate_drums method to return a proper Drums object
+            from merlai.core.types import Drums, Note
 
-        self.music_generator.register_ai_model(hf_config)
-        self.music_generator.register_ai_model(api_config)
+            mock_drums = Drums(
+                notes=[Note(pitch=36, velocity=80, duration=0.5, start_time=0.0)]
+            )
+            mock_response = Mock()
+            mock_response.success = True
+            mock_response.result = mock_drums
+            mock_hf_model.generate_drums.return_value = mock_response
+            mock_api_model.generate_drums.return_value = mock_response
 
-        # 2. Test using different models for different tasks (will fallback to basic generation)
-        melody = Melody(
-            notes=[
-                Note(pitch=60, velocity=80, duration=1.0, start_time=0.0),
-                Note(pitch=62, velocity=80, duration=1.0, start_time=1.0),
-            ]
-        )
+            mock_hf.return_value = mock_hf_model
+            mock_api.return_value = mock_api_model
 
-        # Use different models for different tasks (will fallback to basic generation)
-        harmony = self.music_generator.generate_harmony(
-            melody, style="pop", model_name="harmony-model"
-        )
-        assert isinstance(harmony, Harmony)
+            hf_config = ModelConfig(
+                name="harmony-model",
+                type=ModelType.HUGGINGFACE,
+                model_path="facebook/musicgen-small",
+            )
 
-        bass = self.music_generator.generate_bass_line(
-            melody, harmony, model_name="bass-model"
-        )
-        assert isinstance(bass, Bass)
+            api_config = ModelConfig(
+                name="bass-model",
+                type=ModelType.EXTERNAL_API,
+                endpoint="https://api.example.com/generate",
+            )
 
-        drums = self.music_generator.generate_drums(
-            melody, tempo=120, model_name="harmony-model"
-        )
-        assert isinstance(drums, Drums)
+            self.music_generator.register_ai_model(hf_config)
+            self.music_generator.register_ai_model(api_config)
+
+            # 2. Test using different models for different tasks (will fallback to basic generation)
+            melody = Melody(
+                notes=[
+                    Note(pitch=60, velocity=80, duration=1.0, start_time=0.0),
+                    Note(pitch=62, velocity=80, duration=1.0, start_time=1.0),
+                ]
+            )
+
+            # Use different models for different tasks (will fallback to basic generation)
+            harmony = self.music_generator.generate_harmony(
+                melody, style="pop", model_name="harmony-model"
+            )
+            assert isinstance(harmony, Harmony)
+
+            bass = self.music_generator.generate_bass_line(
+                melody, harmony, model_name="bass-model"
+            )
+            assert isinstance(bass, Bass)
+
+            drums = self.music_generator.generate_drums(
+                melody, tempo=120, model_name="harmony-model"
+            )
+            assert isinstance(drums, Drums)
 
     def test_ai_model_with_midi_generation_workflow(self) -> None:
         """Test complete workflow with AI models and MIDI generation."""
         # 1. Set up AI models
-        config = ModelConfig(
-            name="test-model",
-            type=ModelType.HUGGINGFACE,
-            model_path="facebook/musicgen-small",
-        )
-        self.music_generator.register_ai_model(config)
+        with patch("merlai.core.ai_models.HuggingFaceModel") as mock_hf:
+            mock_model = Mock()
 
-        # 2. Create melody
-        melody = Melody(
-            notes=[
-                Note(pitch=60, velocity=80, duration=1.0, start_time=0.0),
-                Note(pitch=62, velocity=80, duration=1.0, start_time=1.0),
-                Note(pitch=64, velocity=80, duration=1.0, start_time=2.0),
+            # Mock the generate_drums method to return a proper Drums object
+            from merlai.core.types import Drums, Note
+
+            mock_drums = Drums(
+                notes=[Note(pitch=36, velocity=80, duration=0.5, start_time=0.0)]
+            )
+            mock_response = Mock()
+            mock_response.success = True
+            mock_response.result = mock_drums
+            mock_model.generate_drums.return_value = mock_response
+
+            mock_hf.return_value = mock_model
+
+            config = ModelConfig(
+                name="test-model",
+                type=ModelType.HUGGINGFACE,
+                model_path="facebook/musicgen-small",
+            )
+            self.music_generator.register_ai_model(config)
+
+            # 2. Create melody
+            melody = Melody(
+                notes=[
+                    Note(pitch=60, velocity=80, duration=1.0, start_time=0.0),
+                    Note(pitch=62, velocity=80, duration=1.0, start_time=1.0),
+                    Note(pitch=64, velocity=80, duration=1.0, start_time=2.0),
+                ]
+            )
+
+            # 3. Generate music using AI models (will fallback to basic generation)
+            harmony = self.music_generator.generate_harmony(
+                melody, style="pop", model_name="test-model"
+            )
+            bass = self.music_generator.generate_bass_line(
+                melody, harmony, model_name="test-model"
+            )
+            drums = self.music_generator.generate_drums(
+                melody, tempo=120, model_name="test-model"
+            )
+
+            # 4. Create tracks
+            tracks = [
+                Track(name="Melody", notes=melody.notes, channel=0, instrument=0),
+                Track(
+                    name="Harmony", notes=[], channel=1, instrument=48
+                ),  # Empty for now
+                Track(name="Bass", notes=bass.notes, channel=2, instrument=32),
+                Track(name="Drums", notes=drums.notes, channel=9, instrument=0),
             ]
-        )
 
-        # 3. Generate music using AI models (will fallback to basic generation)
-        harmony = self.music_generator.generate_harmony(
-            melody, style="pop", model_name="test-model"
-        )
-        bass = self.music_generator.generate_bass_line(
-            melody, harmony, model_name="test-model"
-        )
-        drums = self.music_generator.generate_drums(
-            melody, tempo=120, model_name="test-model"
-        )
+            # 5. Create song and generate MIDI
+            song = Song(tracks=tracks, tempo=120, duration=3.0)
+            midi_data = self.midi_generator.create_midi_file(song)
 
-        # 4. Create tracks
-        tracks = [
-            Track(name="Melody", notes=melody.notes, channel=0, instrument=0),
-            Track(name="Harmony", notes=[], channel=1, instrument=48),  # Empty for now
-            Track(name="Bass", notes=bass.notes, channel=2, instrument=32),
-            Track(name="Drums", notes=drums.notes, channel=9, instrument=0),
-        ]
+            # 6. Verify results
+            assert isinstance(midi_data, bytes)
+            assert len(midi_data) > 0
 
-        # 5. Create song and generate MIDI
-        song = Song(tracks=tracks, tempo=120, duration=3.0)
-        midi_data = self.midi_generator.create_midi_file(song)
+            # Verify AI-generated components
+            assert isinstance(harmony, Harmony)
+            assert isinstance(bass, Bass)
+            assert isinstance(drums, Drums)
 
-        # 6. Verify results
-        assert isinstance(midi_data, bytes)
-        assert len(midi_data) > 0
-
-        # Verify AI-generated components
-        assert isinstance(harmony, Harmony)
-        assert isinstance(bass, Bass)
-        assert isinstance(drums, Drums)
-
-        # Verify track structure
-        assert len(song.tracks) == 4
-        assert song.tracks[0].name == "Melody"
-        assert song.tracks[1].name == "Harmony"
-        assert song.tracks[2].name == "Bass"
-        assert song.tracks[3].name == "Drums"
+            # Verify track structure
+            assert len(song.tracks) == 4
+            assert song.tracks[0].name == "Melody"
+            assert song.tracks[1].name == "Harmony"
+            assert song.tracks[2].name == "Bass"
+            assert song.tracks[3].name == "Drums"
 
 
 class TestPluginIntegration:

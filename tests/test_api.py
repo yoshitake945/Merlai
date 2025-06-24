@@ -1269,14 +1269,16 @@ class TestConfigEndpoints:
         response = self.client.get("/api/v1/config")
         assert response.status_code == 200
         data = response.json()
-        assert "config" in data
+        assert "temperature" in data
+        assert "max_length" in data
+        assert "batch_size" in data
 
     def test_update_config(self) -> None:
         """Test updating configuration."""
         config_update = {
-            "ai_models_enabled": True,
-            "default_model": "test-model",
-            "max_batch_size": 4,
+            "temperature": 0.7,
+            "max_length": 512,
+            "batch_size": 8,
         }
         response = self.client.post("/api/v1/config", json=config_update)
         assert response.status_code == 200

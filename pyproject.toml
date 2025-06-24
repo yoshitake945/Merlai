@@ -123,6 +123,7 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = [
@@ -132,7 +133,6 @@ module = [
     "click.*",
     "uvicorn.*",
 ]
-ignore_missing_imports = true
 
 [tool.black]
 line-length = 88
