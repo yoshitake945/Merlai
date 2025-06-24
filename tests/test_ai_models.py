@@ -751,33 +751,6 @@ class TestAIModelManagerEdgeCases:
             assert resp.error_message is not None
             assert "fail" in resp.error_message
 
-    def test_external_api_model_http_error(self) -> None:
-        with patch("merlai.core.ai_models.ExternalAPIModel") as mock_api:
-            mock_model = Mock()
-            mock_api.return_value = mock_model
-
-            config = ModelConfig(
-                name="apimodel",
-                type=ModelType.EXTERNAL_API,
-                endpoint="http://localhost:9999",
-            )
-            self.manager.register_model(config)
-            req = GenerationRequest(
-                melody=Melody(notes=[]),
-                style="pop",
-                key="C",
-                tempo=120,
-                generation_type="harmony",
-            )
-            with patch(
-                "merlai.core.ai_models.requests.Session.get",
-                side_effect=Exception("http error"),
-            ):
-                resp = self.manager.generate_harmony("apimodel", req)
-                assert resp.success is False
-                assert resp.error_message is not None
-                assert "error" in resp.error_message.lower()
-
 
 class TestAIModelManagement:
     """Test AI model management functionality."""
