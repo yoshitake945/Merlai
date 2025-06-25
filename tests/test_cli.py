@@ -220,8 +220,11 @@ class TestCLIInputValidation:
 
     def test_serve_command_invalid_port(self) -> None:
         """Test serve command with invalid port."""
-        result = self.runner.invoke(main, ["serve", "--port", "99999"])  # Invalid port
-        assert result.exit_code in [0, 1, 2]
+        with patch("merlai.cli.uvicorn.run"):
+            result = self.runner.invoke(
+                main, ["serve", "--port", "99999"]
+            )  # Invalid port
+            assert result.exit_code in [0, 1, 2]
 
     def test_generate_command_invalid_tempo(self) -> None:
         """Test generate command with invalid tempo."""
