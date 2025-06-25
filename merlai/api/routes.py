@@ -223,6 +223,13 @@ async def generate_harmony_ai(
             model_name=model_name,
         )
         return GenerationResponse(harmony=harmony.chords, success=True)
+    except RuntimeError as e:
+        if "Model not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        else:
+            raise HTTPException(
+                status_code=500, detail=f"AI harmony generation failed: {str(e)}"
+            )
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"AI harmony generation failed: {str(e)}"
@@ -250,6 +257,13 @@ async def generate_bass_ai(
             model_name=model_name,
         )
         return GenerationResponse(bass_line=bass.notes, success=True)
+    except RuntimeError as e:
+        if "Model not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        else:
+            raise HTTPException(
+                status_code=500, detail=f"AI bass generation failed: {str(e)}"
+            )
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"AI bass generation failed: {str(e)}"
@@ -275,6 +289,13 @@ async def generate_drums_ai(
             model_name=model_name,
         )
         return GenerationResponse(drums=drums.notes, success=True)
+    except RuntimeError as e:
+        if "Model not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        else:
+            raise HTTPException(
+                status_code=500, detail=f"AI drum generation failed: {str(e)}"
+            )
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"AI drum generation failed: {str(e)}"
@@ -422,6 +443,8 @@ async def set_plugin_parameter(
             raise HTTPException(
                 status_code=404, detail=f"Plugin {plugin_name} not found"
             )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to set plugin parameter: {str(e)}"
