@@ -1129,6 +1129,14 @@ class TestAIModelEndpoints:
         assert "message" in data
         assert "test-model" in data["default_model"]
 
+    def test_set_default_ai_model_not_found(self) -> None:
+        """Test setting default AI model with non-existent model name."""
+        response = self.client.post("/api/v1/ai/models/nonexistent-model/set-default")
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
+        assert "not found" in data["detail"].lower()
+
     def test_list_ai_models(self) -> None:
         """Test listing AI models."""
         response = self.client.get("/api/v1/ai/models")
@@ -1182,6 +1190,52 @@ class TestAIModelEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert "success" in data
+
+    def test_generate_harmony_ai_model_not_found(self) -> None:
+        """Test generating harmony with non-existent AI model name."""
+        request_data = {
+            "melody": [
+                {"pitch": 60, "velocity": 80, "duration": 1.0, "start_time": 0.0}
+            ],
+            "style": "pop",
+            "tempo": 120,
+            "key": "C",
+        }
+        response = self.client.post(
+            "/api/v1/ai/generate/harmony?model_name=nonexistent-model",
+            json=request_data,
+        )
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
+        assert "not found" in data["detail"].lower()
+
+    def test_generate_harmony_ai_missing_fields(self) -> None:
+        """Test generating harmony with missing required fields (should return 422)."""
+        # melodyフィールドが欠損
+        request_data = {
+            "style": "pop",
+            "tempo": 120,
+            "key": "C",
+        }
+        response = self.client.post("/api/v1/ai/generate/harmony", json=request_data)
+        assert response.status_code == 422
+        data = response.json()
+        assert "detail" in data
+
+    def test_generate_harmony_ai_invalid_type(self) -> None:
+        """Test generating harmony with invalid field type (should return 422)."""
+        # melodyがstr型
+        request_data = {
+            "melody": "not-a-list",
+            "style": "pop",
+            "tempo": 120,
+            "key": "C",
+        }
+        response = self.client.post("/api/v1/ai/generate/harmony", json=request_data)
+        assert response.status_code == 422
+        data = response.json()
+        assert "detail" in data
 
 
 class TestPluginEndpoints:
@@ -1252,6 +1306,25 @@ class TestPluginEndpoints:
         assert response.status_code == 404
         data = response.json()
         assert "detail" in data
+
+    def test_get_plugin_parameters_not_found(self) -> None:
+        """Test getting parameters for non-existent plugin."""
+        response = self.client.get("/api/v1/plugins/nonexistent-plugin/parameters")
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
+        assert "not found" in data["detail"].lower()
+
+    def test_set_plugin_parameter_not_found(self) -> None:
+        """Test setting parameter for non-existent plugin."""
+        response = self.client.post(
+            "/api/v1/plugins/nonexistent-plugin/parameters/volume",
+            params={"value": 0.8},
+        )
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
+        assert "not found" in data["detail"].lower()
 
 
 class TestConfigEndpoints:
