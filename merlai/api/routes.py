@@ -179,6 +179,8 @@ async def set_default_ai_model(
             raise HTTPException(
                 status_code=404, detail=f"AI model {model_name} not found"
             )
+    except HTTPException as e:
+        raise e
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to set default AI model: {str(e)}"

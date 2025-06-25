@@ -1054,7 +1054,8 @@ class TestAPIComprehensiveErrorCases:
 class TestAPIConfig:
     def setup_method(self) -> None:
         self.client = TestClient(app)
-        app.state.music_generator = MusicGenerator()
+        with patch("merlai.core.music.MusicGenerator._initialize_default_models"):
+            app.state.music_generator = MusicGenerator()
         app.state.midi_generator = MIDIGenerator()
         app.state.plugin_manager = PluginManager()
 
@@ -1097,7 +1098,8 @@ class TestAIModelEndpoints:
     def setup_method(self) -> None:
         """Set up test fixtures."""
         self.client = TestClient(app)
-        app.state.music_generator = MusicGenerator()
+        with patch("merlai.core.music.MusicGenerator._initialize_default_models"):
+            app.state.music_generator = MusicGenerator()
         app.state.midi_generator = MIDIGenerator()
         app.state.plugin_manager = PluginManager()
 
@@ -1131,11 +1133,14 @@ class TestAIModelEndpoints:
 
     def test_set_default_ai_model_not_found(self) -> None:
         """Test setting default AI model with non-existent model name."""
-        response = self.client.post("/api/v1/ai/models/nonexistent-model/set-default")
-        assert response.status_code == 404
-        data = response.json()
-        assert "detail" in data
-        assert "not found" in data["detail"].lower()
+        with patch("merlai.core.music.MusicGenerator._initialize_default_models"):
+            response = self.client.post("/api/v1/ai/models/nonexistent-model/set-default")
+            print(f"Response status: {response.status_code}")
+            print(f"Response body: {response.text}")
+            assert response.status_code == 404
+            data = response.json()
+            assert "detail" in data
+            assert "not found" in data["detail"].lower()
 
     def test_list_ai_models(self) -> None:
         """Test listing AI models."""
