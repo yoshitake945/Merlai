@@ -149,8 +149,10 @@ class TestCLICommands:
 
     def test_plugins_command(self) -> None:
         """Test plugins command."""
-        result = self.runner.invoke(main, ["scan-plugins"])
-        assert result.exit_code in [0, 1, 2]
+        with patch("merlai.core.plugins.PluginManager.scan_plugins") as mock_scan:
+            mock_scan.return_value = []
+            result = self.runner.invoke(main, ["scan-plugins"])
+            assert result.exit_code in [0, 1, 2]
 
     def test_plugins_scan_command(self) -> None:
         """Test plugins scan command."""
@@ -162,13 +164,15 @@ class TestCLICommands:
 
     def test_plugins_recommend_command(self) -> None:
         """Test plugins recommend command."""
-        with patch(
-            "merlai.core.plugins.PluginManager.get_plugin_recommendations"
-        ) as mock_recommend:
-            mock_recommend.return_value = []
+        with patch("merlai.core.plugins.PluginManager.scan_plugins") as mock_scan:
+            with patch(
+                "merlai.core.plugins.PluginManager.get_plugin_recommendations"
+            ) as mock_recommend:
+                mock_scan.return_value = []
+                mock_recommend.return_value = []
 
-            result = self.runner.invoke(main, ["recommend-plugins"])
-            assert result.exit_code in [0, 1, 2]
+                result = self.runner.invoke(main, ["recommend-plugins"])
+                assert result.exit_code in [0, 1, 2]
 
 
 class TestCLIErrorHandling:
@@ -180,17 +184,20 @@ class TestCLIErrorHandling:
 
     def test_generate_command_invalid_input_file(self) -> None:
         """Test generate command with invalid input file."""
-        result = self.runner.invoke(
-            main, ["generate", "--input", "/nonexistent/file.mid"]
-        )
-        assert result.exit_code != 0
+        with patch("merlai.core.music.MusicGenerator.load_model"):
+            result = self.runner.invoke(
+                main, ["generate", "--input", "/nonexistent/file.mid"]
+            )
+            assert result.exit_code != 0
 
     def test_plugins_scan_command_invalid_directory(self) -> None:
         """Test plugins scan command with invalid directory."""
-        result = self.runner.invoke(
-            main, ["scan-plugins", "--directory", "/nonexistent/directory"]
-        )
-        assert result.exit_code in [0, 1, 2]
+        with patch("merlai.core.plugins.PluginManager.scan_plugins") as mock_scan:
+            mock_scan.return_value = []
+            result = self.runner.invoke(
+                main, ["scan-plugins", "--directory", "/nonexistent/directory"]
+            )
+            assert result.exit_code in [0, 1, 2]
 
     def test_invalid_command(self) -> None:
         """Test invalid command handling."""
@@ -207,8 +214,9 @@ class TestCLIInputValidation:
 
     def test_generate_command_missing_required_options(self) -> None:
         """Test generate command with missing required options."""
-        result = self.runner.invoke(main, ["generate"])
-        assert result.exit_code in [0, 1, 2]
+        with patch("merlai.core.music.MusicGenerator.load_model"):
+            result = self.runner.invoke(main, ["generate"])
+            assert result.exit_code in [0, 1, 2]
 
     def test_serve_command_invalid_port(self) -> None:
         """Test serve command with invalid port."""
@@ -217,8 +225,9 @@ class TestCLIInputValidation:
 
     def test_generate_command_invalid_tempo(self) -> None:
         """Test generate command with invalid tempo."""
-        result = self.runner.invoke(main, ["generate", "--tempo", "invalid"])
-        assert result.exit_code != 0
+        with patch("merlai.core.music.MusicGenerator.load_model"):
+            result = self.runner.invoke(main, ["generate", "--tempo", "invalid"])
+            assert result.exit_code != 0
 
 
 class TestCLIOutput:
@@ -246,13 +255,15 @@ class TestCLIOutput:
 
     def test_plugins_recommend_command_output_format(self) -> None:
         """Test plugins recommend command output format."""
-        with patch(
-            "merlai.core.plugins.PluginManager.get_plugin_recommendations"
-        ) as mock_recommend:
-            mock_recommend.return_value = []
+        with patch("merlai.core.plugins.PluginManager.scan_plugins") as mock_scan:
+            with patch(
+                "merlai.core.plugins.PluginManager.get_plugin_recommendations"
+            ) as mock_recommend:
+                mock_scan.return_value = []
+                mock_recommend.return_value = []
 
-            result = self.runner.invoke(main, ["recommend-plugins"])
-            assert result.exit_code in [0, 1, 2]
+                result = self.runner.invoke(main, ["recommend-plugins"])
+                assert result.exit_code in [0, 1, 2]
 
 
 class TestCLIEdgeCases:
@@ -264,18 +275,27 @@ class TestCLIEdgeCases:
         self.main = main
 
     def test_scan_plugins_invalid_directory(self) -> None:
-        result = self.runner.invoke(
-            self.main, ["scan-plugins", "--directory", "/not/exist"]
-        )
-        assert result.exit_code in [0, 1, 2]
+        with patch("merlai.core.plugins.PluginManager.scan_plugins") as mock_scan:
+            mock_scan.return_value = []
+            result = self.runner.invoke(
+                self.main, ["scan-plugins", "--directory", "/not/exist"]
+            )
+            assert result.exit_code in [0, 1, 2]
 
     def test_generate_with_extreme_values(self) -> None:
         """Test generate with extreme parameter values."""
-        result = self.runner.invoke(
-            self.main,
-            ["generate", "--tempo", "999999", "--style", "extremely_long_style_name"],
-        )
-        assert result.exit_code in [0, 1, 2]
+        with patch("merlai.core.music.MusicGenerator.load_model"):
+            result = self.runner.invoke(
+                self.main,
+                [
+                    "generate",
+                    "--tempo",
+                    "999999",
+                    "--style",
+                    "extremely_long_style_name",
+                ],
+            )
+            assert result.exit_code in [0, 1, 2]
 
 
 class TestCLIGenerateCombinations:
@@ -283,25 +303,31 @@ class TestCLIGenerateCombinations:
         self.runner = CliRunner()
 
     def test_generate_with_only_style(self) -> None:
-        result = self.runner.invoke(main, ["generate", "--style", "jazz"])
-        assert result.exit_code in [0, 1, 2]
+        with patch("merlai.core.music.MusicGenerator.load_model"):
+            result = self.runner.invoke(main, ["generate", "--style", "jazz"])
+            assert result.exit_code in [0, 1, 2]
 
     def test_generate_with_only_tempo(self) -> None:
-        result = self.runner.invoke(main, ["generate", "--tempo", "100"])
-        assert result.exit_code in [0, 1, 2]
+        with patch("merlai.core.music.MusicGenerator.load_model"):
+            result = self.runner.invoke(main, ["generate", "--tempo", "100"])
+            assert result.exit_code in [0, 1, 2]
 
     def test_generate_with_only_key(self) -> None:
-        result = self.runner.invoke(main, ["generate", "--key", "G"])
-        assert result.exit_code in [0, 1, 2]
+        with patch("merlai.core.music.MusicGenerator.load_model"):
+            result = self.runner.invoke(main, ["generate", "--key", "G"])
+            assert result.exit_code in [0, 1, 2]
 
     def test_generate_with_invalid_style(self) -> None:
-        result = self.runner.invoke(main, ["generate", "--style", "invalidstyle"])
-        assert result.exit_code in [0, 1, 2]
+        with patch("merlai.core.music.MusicGenerator.load_model"):
+            result = self.runner.invoke(main, ["generate", "--style", "invalidstyle"])
+            assert result.exit_code in [0, 1, 2]
 
     def test_generate_with_invalid_tempo(self) -> None:
-        result = self.runner.invoke(main, ["generate", "--tempo", "notanumber"])
-        assert result.exit_code != 0
+        with patch("merlai.core.music.MusicGenerator.load_model"):
+            result = self.runner.invoke(main, ["generate", "--tempo", "notanumber"])
+            assert result.exit_code != 0
 
     def test_generate_with_invalid_key(self) -> None:
-        result = self.runner.invoke(main, ["generate", "--key", "!!!"])
-        assert result.exit_code in [0, 1, 2]
+        with patch("merlai.core.music.MusicGenerator.load_model"):
+            result = self.runner.invoke(main, ["generate", "--key", "!!!"])
+            assert result.exit_code in [0, 1, 2]
