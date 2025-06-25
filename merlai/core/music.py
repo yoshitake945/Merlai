@@ -109,6 +109,15 @@ class MusicGenerator:
                     and isinstance(response.result, Harmony)
                 ):
                     return response.result
+                elif (
+                    not response.success
+                    and response.error_message
+                    and "Model not found" in response.error_message
+                ):
+                    # Raise exception for non-existent model
+                    raise RuntimeError(response.error_message)
+            except RuntimeError:
+                raise
             except Exception as e:
                 print(
                     f"Warning: AI model exception, using legacy method: {e}"  # noqa: E501
@@ -200,6 +209,15 @@ class MusicGenerator:
                     and isinstance(response.result, Bass)
                 ):
                     return response.result
+                elif (
+                    not response.success
+                    and response.error_message
+                    and "Model not found" in response.error_message
+                ):
+                    # Raise exception for non-existent model
+                    raise RuntimeError(response.error_message)
+            except RuntimeError:
+                raise
             except Exception as e:
                 print(f"Warning: AI model exception, using legacy method: {e}")
         return self._generate_bass_line_legacy(melody, harmony)
@@ -240,22 +258,32 @@ class MusicGenerator:
                 top_p=self.config.top_p,
             )
 
-            response = self.ai_model_manager.generate_drums(model_name, request)
+            try:
+                response = self.ai_model_manager.generate_drums(model_name, request)
 
-            if response.success and response.result:
-                if isinstance(response.result, Drums):
-                    return response.result
+                if response.success and response.result:
+                    if isinstance(response.result, Drums):
+                        return response.result
+                    else:
+                        raise RuntimeError("AI model did not return Drums type")
+                elif (
+                    not response.success
+                    and response.error_message
+                    and "Model not found" in response.error_message
+                ):
+                    # Raise exception for non-existent model
+                    raise RuntimeError(response.error_message)
                 else:
-                    raise RuntimeError("AI model did not return Drums type")
-            else:
-                # Fallback to legacy method if AI model fails
-                print(
-                    f"Warning: AI model failed, using legacy method: {response.error_message}"  # noqa: E501
-                )
-                return self._generate_drums_legacy(melody, tempo)
-        else:
-            # Legacy method
-            return self._generate_drums_legacy(melody, tempo)
+                    # Fallback to legacy method if AI model fails
+                    print(
+                        f"Warning: AI model failed, using legacy method: {response.error_message}"  # noqa: E501
+                    )
+                    return self._generate_drums_legacy(melody, tempo)
+            except RuntimeError:
+                raise
+            except Exception as e:
+                print(f"Warning: AI model exception, using legacy method: {e}")
+        return self._generate_drums_legacy(melody, tempo)
 
     def _generate_drums_legacy(self, melody: Melody, tempo: int) -> Drums:
         """Legacy drum pattern generation method."""
