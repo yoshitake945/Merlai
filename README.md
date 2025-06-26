@@ -51,6 +51,19 @@ pip install -e .
 
 ### Usage
 
+#### Docker (Recommended)
+```bash
+# Pull the latest image
+docker pull ghcr.io/yoshitake945/merlai:latest
+
+# Run the container
+docker run -p 8000:8000 ghcr.io/yoshitake945/merlai:latest
+
+# For GPU support (requires NVIDIA Docker)
+docker pull ghcr.io/yoshitake945/merlai:latest-gpu
+docker run --gpus all -p 8000:8000 ghcr.io/yoshitake945/merlai:latest-gpu
+```
+
 #### CLI
 ```bash
 # Start the API server
