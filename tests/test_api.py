@@ -1134,7 +1134,9 @@ class TestAIModelEndpoints:
     def test_set_default_ai_model_not_found(self) -> None:
         """Test setting default AI model with non-existent model name."""
         with patch("merlai.core.music.MusicGenerator._initialize_default_models"):
-            response = self.client.post("/api/v1/ai/models/nonexistent-model/set-default")
+            response = self.client.post(
+                "/api/v1/ai/models/nonexistent-model/set-default"
+            )
             print(f"Response status: {response.status_code}")
             print(f"Response body: {response.text}")
             assert response.status_code == 404
