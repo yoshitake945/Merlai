@@ -2,9 +2,10 @@
 Core data types for music generation.
 """
 
+from dataclasses import dataclass
 from typing import List, Optional
-from dataclasses import dataclass, field
-from pydantic import BaseModel
+
+from pydantic import BaseModel, field_validator
 
 
 @dataclass
@@ -16,8 +17,8 @@ class Note:
     duration: float  # Duration in seconds
     start_time: float  # Start time in seconds
     channel: int = 0  # MIDI channel (0-15)
-    
-    def __post_init__(self):
+
+    def __post_init__(self) -> None:
         """Validate note parameters after initialization."""
         if not 0 <= self.pitch <= 127:
             raise ValueError(f"Pitch must be between 0 and 127, got {self.pitch}")
@@ -29,6 +30,17 @@ class Note:
             raise ValueError(f"Start time must be non-negative, got {self.start_time}")
         if not 0 <= self.channel <= 15:
             raise ValueError(f"Channel must be between 0 and 15, got {self.channel}")
+
+    def __str__(self) -> str:
+        """Return a string representation of the note."""
+        return (
+            f"Note(pitch={self.pitch}, velocity={self.velocity}, duration={self.duration}, "  # noqa: E501
+            f"start_time={self.start_time}, channel={self.channel})"
+        )
+
+    def __repr__(self) -> str:
+        """Return a string representation of the note."""
+        return self.__str__()  # noqa: E501
 
 
 @dataclass
@@ -119,6 +131,13 @@ class GenerationRequest(BaseModel):
     generate_harmony: bool = True
     generate_bass: bool = True
     generate_drums: bool = True
+
+    @field_validator("melody")
+    @classmethod
+    def melody_must_not_be_empty(cls, v: List[NoteData]) -> List[NoteData]:
+        if not v:
+            raise ValueError("melody must not be empty")
+        return v
 
 
 class GenerationResponse(BaseModel):

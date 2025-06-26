@@ -1,5 +1,5 @@
 # Multi-stage build for Merlai AI Music Assistant
-FROM nvidia/cuda:11.8-devel-ubuntu22.04 as base
+FROM nvidia/cuda:11.8.0-devel-ubuntu20.04 AS base
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
@@ -38,7 +38,7 @@ COPY pyproject.toml /tmp/
 RUN pip install -e /tmp/[gpu]
 
 # Development stage
-FROM base as development
+FROM base AS development
 
 # Install development dependencies
 RUN pip install -e /tmp/[dev]
@@ -58,7 +58,7 @@ EXPOSE 8000 8001
 CMD ["uvicorn", "merlai.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # Production stage
-FROM base as production
+FROM base AS production
 
 # Copy source code
 COPY . /app
@@ -79,7 +79,7 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 CMD ["uvicorn", "merlai.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
 
 # GPU inference stage
-FROM base as gpu-inference
+FROM base AS gpu-inference
 
 # Install additional GPU-specific dependencies
 RUN pip install torch[cu118] torchaudio[cu118] --index-url https://download.pytorch.org/whl/cu118

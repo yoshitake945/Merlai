@@ -4,15 +4,15 @@ Command-line interface for Merlai music generation.
 
 import json
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 import click
 import uvicorn
 
-from .core.music import MusicGenerator
 from .core.midi import MIDIGenerator, Track
+from .core.music import MusicGenerator
 from .core.plugins import PluginManager
-from .core.types import Note, Melody
+from .core.types import Melody, Note
 
 
 @click.group()
@@ -24,7 +24,11 @@ def main() -> None:
 
 @main.command()
 @click.option(
-    "--input", "-i", "input_file", type=click.Path(exists=True), help="Input MIDI file"
+    "--input",
+    "-i",
+    "input_file",
+    type=click.Path(exists=True),
+    help="Input MIDI file",
 )
 @click.option(
     "--output", "-o", "output_file", type=click.Path(), help="Output MIDI file"
@@ -69,7 +73,9 @@ def generate(
 
             song = midi_generator.parse_midi_file(midi_data)
             melody = Melody(
-                notes=song.tracks[0].notes if song.tracks else [], tempo=tempo, key=key
+                notes=song.tracks[0].notes if song.tracks else [],
+                tempo=tempo,
+                key=key,
             )
         else:
             # Create sample melody for testing
@@ -135,7 +141,7 @@ def generate(
             tracks.append(
                 Track(
                     name="Bass",
-                    notes=generated_parts["bass"],
+                    notes=generated_parts["bass"].notes,
                     channel=2,
                     instrument=32,  # Acoustic Bass
                 )
@@ -145,7 +151,7 @@ def generate(
             tracks.append(
                 Track(
                     name="Drums",
-                    notes=generated_parts["drums"],
+                    notes=generated_parts["drums"].notes,
                     channel=9,  # MIDI channel 10 for drums
                     instrument=0,
                 )
@@ -169,7 +175,10 @@ def generate(
 
 @main.command()
 @click.option(
-    "--directory", "-d", type=click.Path(exists=True), help="Plugin directory to scan"
+    "--directory",
+    "-d",
+    type=click.Path(exists=True),
+    help="Plugin directory to scan",
 )
 @click.option("--output", "-o", type=click.Path(), help="Output JSON file")
 def scan_plugins(directory: Optional[str], output: Optional[str]) -> None:
@@ -258,14 +267,18 @@ def serve(host: str, port: int, reload: bool, log_level: str) -> None:
     click.echo(f"Log level: {log_level}")
 
     uvicorn.run(
-        "merlai.api.main:app", host=host, port=port, reload=reload, log_level=log_level
+        "merlai.api.main:app",
+        host=host,
+        port=port,
+        reload=reload,
+        log_level=log_level,
     )
 
 
 def _chord_to_notes(chord: Any) -> List[Note]:
     """Convert a chord to a list of notes."""
     # This is a placeholder implementation
-    # In a real implementation, you would convert chord notation to actual notes
+    # In a real implementation, you would convert chord notation to actual notes # noqa: E501
     return []
 
 

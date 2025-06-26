@@ -2,13 +2,15 @@
 Plugin management system for sound plugins.
 """
 
-import os
 import json
-from typing import List, Dict, Optional, Any
-from dataclasses import dataclass, field
+import os
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
+
+from .types import Note, Song, Track
 
 
 @dataclass
@@ -128,13 +130,12 @@ class PluginManager:
         plugin_info = self.plugins[plugin_name]
 
         try:
-            # This would integrate with actual plugin loading libraries
-            # For now, just mark as loaded
+            # Plugin loading logic would go here
             plugin_info.is_loaded = True
             self.loaded_plugins[plugin_name] = plugin_info
             return True
-        except Exception as e:
-            print(f"Failed to load plugin {plugin_name}: {e}")
+        except Exception:
+            # Return False if exception occurs
             return False
 
     def get_plugin_parameters(self, plugin_name: str) -> List[PluginParameter]:
@@ -165,7 +166,7 @@ class PluginManager:
                 ),
             ]
         except Exception:
-            # 例外が発生した場合は空リストを返す
+            # Return empty list if exception occurs
             return []
 
     def set_plugin_parameter(
@@ -177,11 +178,10 @@ class PluginManager:
                 # プラグインが存在しない場合はFalseを返す（正常なエラー）
                 return False
 
-            # This would set actual plugin parameters
-            # For now, just return success
+            # Parameter setting logic would go here
             return True
         except Exception:
-            # 例外が発生した場合はFalseを返す
+            # Return False if exception occurs
             return False
 
     def get_presets(self, plugin_name: str) -> List[PluginPreset]:
@@ -191,8 +191,7 @@ class PluginManager:
                 # プラグインが存在しない場合は空リストを返す（正常なエラー）
                 return []
 
-            # This would return actual plugin presets
-            # For now, return dummy presets
+            # Preset loading logic would go here
             return [
                 PluginPreset(
                     name="Default",
@@ -206,7 +205,7 @@ class PluginManager:
                 ),
             ]
         except Exception:
-            # 例外が発生した場合は空リストを返す
+            # Return empty list if exception occurs
             return []
 
     def get_plugin_info(self, plugin_name: str) -> Optional[PluginInfo]:
@@ -291,20 +290,23 @@ class PluginManager:
             print(f"Failed to import plugin config: {e}")
             return False
 
-    def create_midi_file(self, song):
+    def create_midi_file(self, song: Song) -> bytes:
         """Create MIDI file from song data using MIDIGenerator."""
         from .midi import MIDIGenerator
+
         generator = MIDIGenerator()
         return generator.create_midi_file(song)
 
-    def create_midi_from_notes(self, notes, tempo=120):
+    def create_midi_from_notes(self, notes: List[Note], tempo: int = 120) -> bytes:
         """Create MIDI file from notes using MIDIGenerator."""
         from .midi import MIDIGenerator
+
         generator = MIDIGenerator()
         return generator.create_midi_from_notes(notes, tempo)
 
-    def merge_tracks(self, tracks):
+    def merge_tracks(self, tracks: List[Track]) -> bytes:
         """Merge tracks into a MIDI file using MIDIGenerator."""
         from .midi import MIDIGenerator
+
         generator = MIDIGenerator()
         return generator.merge_tracks(tracks)
