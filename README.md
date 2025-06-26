@@ -13,6 +13,11 @@ You provide the main melody – Merlai complements the rest with MIDI-ready sugg
 Almost all code, design, and documentation in this project were created with the assistance of AI coding tools (e.g., OpenAI GPT-4, GitHub Copilot, etc.).
 The developer is not proficient in Python or other technical stacks and heavily relies on AI assistance for development.
 
+**Implementation Status / 実装状況:**
+本プロジェクトは実装は完了していますが、**動作確認は未実施**です。
+
+This project has been implemented but **has not been tested for functionality**.
+
 **Language Proficiency / 言語能力:**
 開発者は英語が堪能ではないため、英語表現に不自然な点や誤りが含まれる可能性があります。
 技術的な議論や改善提案については、日本語でのコミュニケーションを推奨します。
@@ -53,15 +58,15 @@ pip install -e .
 
 #### Docker (Recommended)
 ```bash
-# Pull the latest image
-docker pull ghcr.io/yoshitake945/merlai:latest
+# Build from source (GitHub Container Registry images coming soon)
+docker build -f docker/Dockerfile.cpu -t merlai:latest .
 
 # Run the container
-docker run -p 8000:8000 ghcr.io/yoshitake945/merlai:latest
+docker run -p 8000:8000 merlai:latest
 
 # For GPU support (requires NVIDIA Docker)
-docker pull ghcr.io/yoshitake945/merlai:latest-gpu
-docker run --gpus all -p 8000:8000 ghcr.io/yoshitake945/merlai:latest-gpu
+docker build -f docker/Dockerfile -t merlai:gpu .
+docker run --gpus all -p 8000:8000 merlai:gpu
 ```
 
 #### CLI
