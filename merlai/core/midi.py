@@ -2,16 +2,18 @@
 MIDI generation and processing functionality.
 """
 
-from typing import List
 import io
+from typing import List
+
 from midiutil import MIDIFile
-from .types import Note, Track, Song
+
+from .types import Note, Song, Track
 
 
 class MIDIGenerator:
     """MIDI file generation and processing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize MIDI generator."""
         self.default_velocity = 64
         self.default_duration = 0.5
@@ -20,7 +22,7 @@ class MIDIGenerator:
         """Create MIDI file from song data."""
         if song.tempo <= 0:
             raise ValueError(f"tempo must be positive, got {song.tempo}")
-        
+
         midi = MIDIFile(len(song.tracks), deinterleave=False)
 
         # Set tempo
@@ -39,10 +41,8 @@ class MIDIGenerator:
         """Create MIDI file from list of notes."""
         if tempo <= 0:
             raise ValueError(f"tempo must be positive, got {tempo}")
-        
         midi = MIDIFile(1, deinterleave=False)
         midi.addTempo(0, 0, tempo)
-
         for note in notes:
             midi.addNote(
                 track=0,
@@ -52,7 +52,6 @@ class MIDIGenerator:
                 duration=note.duration,
                 volume=note.velocity,
             )
-
         midi_bytes = io.BytesIO()
         midi.writeFile(midi_bytes)
         return midi_bytes.getvalue()
@@ -102,7 +101,6 @@ class MIDIGenerator:
             # Quantize start time
             quantized_start = round(note.start_time / grid_size) * grid_size
             quantized_duration = round(note.duration / grid_size) * grid_size
-
             quantized_note = Note(
                 pitch=note.pitch,
                 velocity=note.velocity,
@@ -111,7 +109,6 @@ class MIDIGenerator:
                 channel=note.channel,
             )
             quantized_notes.append(quantized_note)
-
         return quantized_notes
 
     def transpose_notes(self, notes: List[Note], semitones: int) -> List[Note]:
