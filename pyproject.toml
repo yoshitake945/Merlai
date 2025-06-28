@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "merlai"
-version = "0.1.0"
+version = "0.1.2"
 description = "AI-powered music creation assistant for filling missing notes"
 readme = "README.md"
 license = {text = "MIT"}
