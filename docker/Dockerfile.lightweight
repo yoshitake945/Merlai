@@ -22,7 +22,7 @@ FROM python:3.11-alpine AS production
 
 # Install minimal runtime dependencies
 RUN apk add --no-cache \
-    libsndfile \
+    libsndfile-dev \
     curl \
     && rm -rf /var/cache/apk/*
 

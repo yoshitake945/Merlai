@@ -23,7 +23,7 @@ FROM python:3.11-alpine AS production
 
 # Install runtime dependencies only
 RUN apk add --no-cache \
-    libsndfile \
+    libsndfile-dev \
     ffmpeg \
     curl \
     && rm -rf /var/cache/apk/*
