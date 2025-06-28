@@ -59,13 +59,13 @@ pip install -e .
 #### Docker (Recommended)
 ```bash
 # Build from source (GitHub Container Registry images coming soon)
-docker build -f docker/Dockerfile.cpu -t merlai:latest .
+docker build -f docker/Dockerfile -t merlai:latest .
 
 # Run the container
 docker run -p 8000:8000 merlai:latest
 
 # For GPU support (requires NVIDIA Docker)
-docker build -f docker/Dockerfile -t merlai:gpu .
+docker build -f docker/Dockerfile.gpu -t merlai:gpu .
 docker run --gpus all -p 8000:8000 merlai:gpu
 ```
 

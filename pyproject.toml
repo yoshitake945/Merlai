@@ -26,15 +26,11 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-    # Core AI/ML
-    "torch>=2.0.0",
-    "torchaudio>=2.0.0",
-    "transformers>=4.30.0",
-    "diffusers>=0.20.0",
-    "accelerate>=0.20.0",
+    # Core dependencies (lightweight)
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
     
     # Audio/MIDI processing
-    "librosa>=0.10.0",
     "midiutil>=1.2.1",
     "pretty_midi>=0.2.9",
     "soundfile>=0.12.0",
@@ -50,9 +46,7 @@ dependencies = [
     "types-PyYAML>=6.0.0",
     
     # Data processing
-    "numpy>=1.24.0",
     "pandas>=2.0.0",
-    "scipy>=1.10.0",
     
     # Utilities
     "click>=8.1.0",
@@ -63,6 +57,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+ai = [
+    # Core AI/ML dependencies
+    "torch[cpu]>=2.0.0",
+    "torchaudio[cpu]>=2.0.0",
+    "transformers>=4.30.0",
+    "diffusers>=0.20.0",
+    "accelerate>=0.20.0",
+    "librosa>=0.10.0",
+]
 dev = [
     "pytest>=7.3.0",
     "pytest-asyncio>=0.21.0",
@@ -88,8 +91,8 @@ test = [
     "httpx>=0.24.0",
 ]
 cpu = [
-    "torch>=2.0.0",
-    "torchaudio>=2.0.0",
+    "torch[cpu]>=2.0.0",
+    "torchaudio[cpu]>=2.0.0",
     "transformers>=4.30.0",
     "diffusers>=0.20.0",
     "accelerate>=0.20.0",
@@ -97,6 +100,26 @@ cpu = [
 gpu = [
     "torch[cu118]>=2.0.0",
     "torchaudio[cu118]>=2.0.0",
+]
+lightweight = [
+    # Minimal AI dependencies (no PyTorch/Transformers)
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    
+    # Lightweight audio processing
+    "midiutil>=1.2.1",
+    "soundfile>=0.12.0",
+    
+    # Web API
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.22.0",
+    "pydantic>=2.0.0",
+    
+    # Utilities
+    "click>=8.1.0",
+    "rich>=13.0.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
 ]
 docker = [
     "docker>=6.1.0",

@@ -147,14 +147,30 @@ jobs:
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=v0.1.0,enable={{is_default_branch}}
-      - name: Build and push Docker image
+      - name: Build and push optimized CPU image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: docker/Dockerfile.cpu
+          file: docker/Dockerfile
+          target: production
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+      - name: Build and push lightweight image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.lightweight
+          target: production
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}-lightweight
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
 
   notify:
     runs-on: ubuntu-latest

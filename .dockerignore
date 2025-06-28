@@ -36,17 +36,63 @@ ENV/
 Thumbs.db
 
 # Git
-.git/
+.git
 .gitignore
+.gitattributes
 
-# Docker
-Dockerfile*
-docker-compose*.yml
-.dockerignore
+# Documentation
+docs/
+*.md
+!README.md
+
+# Development
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.pytest_cache/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
 # Logs
 *.log
+logs/
 
-# Data
-data/
-models/ 
+# Temporary files
+*.tmp
+*.temp
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Local configuration
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Large files
+*.mid
+*.wav
+*.mp3
+*.flac
+models/
+*.pkl
+*.h5
+*.onnx
+*.data/ 
