@@ -1,13 +1,13 @@
 # Multi-stage build for optimized Docker image
-FROM python:3.11-alpine AS builder
+FROM python:3.11-slim AS builder
 
 # Install build dependencies
-RUN apk add --no-cache \
-    build-base \
+RUN apt-get update && apt-get install -y \
+    build-essential \
     libffi-dev \
-    openssl-dev \
-    musl-dev \
-    linux-headers
+    libssl-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -19,14 +19,14 @@ COPY README.md ./
 RUN pip install --user --no-cache-dir -e .[cpu,ai]
 
 # Production stage
-FROM python:3.11-alpine AS production
+FROM python:3.11-slim AS production
 
 # Install runtime dependencies only
-RUN apk add --no-cache \
-    libsndfile-dev \
+RUN apt-get update && apt-get install -y \
+    libsndfile1 \
     ffmpeg \
     curl \
-    && rm -rf /var/cache/apk/*
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -38,7 +38,7 @@ COPY merlai/ ./merlai/
 COPY README.md ./
 
 # Create non-root user
-RUN adduser -D -u 1000 merlai && \
+RUN useradd --create-home --shell /bin/bash merlai && \
     chown -R merlai:merlai /app
 
 USER merlai
