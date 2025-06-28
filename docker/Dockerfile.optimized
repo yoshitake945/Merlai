@@ -16,7 +16,7 @@ COPY pyproject.toml ./
 COPY README.md ./
 
 # Install dependencies in user space
-RUN pip install --user --no-cache-dir -e .[cpu]
+RUN pip install --user --no-cache-dir -e .[cpu,ai]
 
 # Production stage
 FROM python:3.11-alpine AS production
