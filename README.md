@@ -54,18 +54,52 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -e .
 ```
 
+### Docker Images
+
+Merlai provides optimized Docker images for different use cases:
+
+### Available Images
+
+- **Lightweight Version** (~450MB): `ghcr.io/your-org/merlai:latest`
+  - Minimal dependencies for basic music generation
+  - Suitable for development and testing
+  - 85% size reduction from original
+
+- **GPU Version**: `ghcr.io/your-org/merlai:latest-gpu`
+  - Full AI model support with GPU acceleration
+  - Requires NVIDIA Docker runtime
+  - For production AI-powered music generation
+
+### Quick Start
+
+```bash
+# Lightweight version (recommended for most users)
+docker run -p 8000:8000 ghcr.io/your-org/merlai:latest
+
+# GPU version (requires NVIDIA Docker)
+docker run --gpus all -p 8000:8000 ghcr.io/your-org/merlai:latest-gpu
+```
+
+### Image Tags
+
+- `latest` - Latest lightweight version
+- `v0.1.0` - Specific version (lightweight)
+- `v0.1.0-gpu` - Specific version with GPU support
+
+**Note**: Optimized CPU version (~2GB) is temporarily unavailable due to CI/CD constraints. The lightweight version provides excellent performance for most use cases.
+
 ### Usage
 
 #### Docker (Recommended)
 ```bash
 # Build from source (GitHub Container Registry images coming soon)
-docker build -f docker/Dockerfile.cpu -t merlai:latest .
+docker build -f docker/Dockerfile -t merlai:latest .
 
 # Run the container
 docker run -p 8000:8000 merlai:latest
 
 # For GPU support (requires NVIDIA Docker)
-docker build -f docker/Dockerfile -t merlai:gpu .
+docker build -f docker/Dockerfile.gpu -t merlai:gpu .
 docker run --gpus all -p 8000:8000 merlai:gpu
 ```
 
