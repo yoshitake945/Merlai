@@ -11,6 +11,10 @@ jobs:
   # 軽量チェック（変更検出と基本的な品質チェック）
   quick-check:
     runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.check-docs.outputs.docs_only }}
+      has_code_changes: ${{ steps.check-docs.outputs.has_code_changes }}
+      has_docker_changes: ${{ steps.check-docs.outputs.has_docker_changes }}
     if: |
       github.event_name == 'push' || 
       github.event_name == 'pull_request'
