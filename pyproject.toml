@@ -58,12 +58,9 @@ dependencies = [
 
 [project.optional-dependencies]
 ai = [
-    # Core AI/ML dependencies
+    # Core AI/ML dependencies (minimal)
     "torch[cpu]>=2.0.0",
-    "torchaudio[cpu]>=2.0.0",
     "transformers>=4.30.0",
-    "diffusers>=0.20.0",
-    "accelerate>=0.20.0",
     "librosa>=0.10.0",
 ]
 dev = [
