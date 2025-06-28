@@ -15,7 +15,13 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY README.md ./
 
-# Install dependencies in user space
+# Create non-root user before pip install
+RUN useradd --create-home --shell /bin/bash merlai
+
+# Install dependencies in user space for merlai user
+USER merlai
+ENV PATH="/home/merlai/.local/bin:$PATH"
+WORKDIR /app
 RUN pip install --user --no-cache-dir -e .[cpu,ai]
 
 # Production stage
@@ -30,21 +36,16 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy Python packages from builder
-COPY --from=builder /root/.local /root/.local
-
-# Copy application code
-COPY merlai/ ./merlai/
-COPY README.md ./
-
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash merlai && \
     chown -R merlai:merlai /app
 
-USER merlai
+# Copy Python packages from builder
+COPY --from=builder /home/merlai/.local /home/merlai/.local
+COPY --from=builder /app /app
 
-# Add local bin to PATH
-ENV PATH=/root/.local/bin:$PATH
+USER merlai
+ENV PATH="/home/merlai/.local/bin:$PATH"
 
 EXPOSE 8000
 
