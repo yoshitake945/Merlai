@@ -153,25 +153,14 @@ jobs:
           driver-opts: |
             image=moby/buildkit:v0.12.0
       
-      - name: Build and push optimized CPU image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/Dockerfile
-          target: production
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64
-      
-      - name: Build and push lightweight image
+      - name: Build and push lightweight image only
         uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/Dockerfile.lightweight
           target: production
           push: true
-          tags: ${{ steps.meta.outputs.tags }}-lightweight
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
 
