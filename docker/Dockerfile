@@ -1,99 +1,89 @@
-# Multi-stage build for Merlai AI Music Assistant
-FROM nvidia/cuda:11.8.0-devel-ubuntu20.04 AS base
+# Optimized multi-stage build for Merlai AI Music Assistant
+FROM python:3.11-slim AS builder
 
-# Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PIP_NO_CACHE_DIR=1
-ENV PIP_DISABLE_PIP_VERSION_CHECK=1
-
-# Install system dependencies
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
-    python3.10 \
-    python3.10-dev \
-    python3-pip \
-    python3.10-venv \
-    git \
-    curl \
-    wget \
     build-essential \
-    libsndfile1 \
-    libasound2-dev \
-    portaudio19-dev \
-    libportaudio2 \
-    libportaudiocpp0 \
-    ffmpeg \
+    libffi-dev \
+    libssl-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Create virtual environment
-RUN python3.10 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Upgrade pip and install wheel
-RUN pip install --upgrade pip setuptools wheel
-
-# Copy requirements and install Python dependencies
-COPY pyproject.toml /tmp/
-RUN pip install -e /tmp/[gpu]
-
-# Development stage
-FROM base AS development
-
-# Install development dependencies
-RUN pip install -e /tmp/[dev]
-
-# Copy source code
-COPY . /app
 WORKDIR /app
 
-# Create non-root user
-RUN useradd -m -u 1000 merlai && chown -R merlai:merlai /app
+# Copy requirements and source code first for better caching
+COPY pyproject.toml ./
+COPY README.md ./
+COPY merlai/ ./merlai/
+
+# Create non-root user before pip install
+RUN useradd --create-home --shell /bin/bash merlai
+
+# Install dependencies in user space for merlai user
 USER merlai
-
-# Expose ports
-EXPOSE 8000 8001
-
-# Default command
-CMD ["uvicorn", "merlai.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+ENV PATH="/home/merlai/.local/bin:$PATH"
+WORKDIR /app
+RUN pip install --user --no-cache-dir -e .[cpu,ai]
 
 # Production stage
-FROM base AS production
+FROM python:3.11-slim AS production
 
-# Copy source code
-COPY . /app
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y \
+    libsndfile1 \
+    ffmpeg \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Create non-root user
-RUN useradd -m -u 1000 merlai && chown -R merlai:merlai /app
-USER merlai
+RUN useradd --create-home --shell /bin/bash merlai && \
+    chown -R merlai:merlai /app
 
-# Expose ports
+# Copy Python packages and app from builder
+COPY --from=builder /home/merlai/.local /home/merlai/.local
+COPY --from=builder /app /app
+
+USER merlai
+ENV PATH="/home/merlai/.local/bin:$PATH"
+
 EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Default command
-CMD ["uvicorn", "merlai.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["merlai", "serve", "--host", "0.0.0.0", "--port", "8000"]
+
+# Development stage (optional)
+FROM production AS development
+
+USER root
+
+# Install development dependencies
+RUN pip install --user --no-cache-dir -e .[dev]
+
+USER merlai
+
+EXPOSE 8000 8001
+
+CMD ["merlai", "serve", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # GPU inference stage
-FROM base AS gpu-inference
+FROM python:3.11-slim AS gpu-inference
 
 # Install additional GPU-specific dependencies
 RUN pip install torch[cu118] torchaudio[cu118] --index-url https://download.pytorch.org/whl/cu118
 
-# Copy source code
-COPY . /app
 WORKDIR /app
 
 # Create non-root user
-RUN useradd -m -u 1000 merlai && chown -R merlai:merlai /app
+RUN useradd --create-home --shell /bin/bash merlai && \
+    chown -R merlai:merlai /app
+
 USER merlai
 
-# Expose ports
 EXPOSE 8000
 
-# Default command for GPU inference
 CMD ["python", "-m", "merlai.inference.server"] 

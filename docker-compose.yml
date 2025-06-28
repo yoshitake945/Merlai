@@ -133,7 +133,8 @@ services:
   merlai-cpu:
     build:
       context: .
-      dockerfile: docker/Dockerfile.cpu
+      dockerfile: docker/Dockerfile
+      target: development
     ports:
       - "8000:8000"
     volumes:
@@ -148,7 +149,8 @@ services:
   merlai-debug:
     build:
       context: .
-      dockerfile: docker/Dockerfile.debug
+      dockerfile: docker/Dockerfile
+      target: development
     ports:
       - "8001:8000"
     volumes:

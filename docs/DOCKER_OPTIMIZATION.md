@@ -76,7 +76,7 @@ Exclude unnecessary files:
 ## Image Variants
 
 ### 1. Optimized CPU Image
-- **File**: `docker/Dockerfile.optimized`
+- **File**: `docker/Dockerfile`
 - **Target**: `production`
 - **Size**: ~2-3GB
 - **Features**: Full AI capabilities with CPU optimization
@@ -87,7 +87,7 @@ Exclude unnecessary files:
 - **Features**: Basic MIDI processing without AI models
 
 ### 3. Development Image
-- **File**: `docker/Dockerfile.optimized`
+- **File**: `docker/Dockerfile`
 - **Target**: `development`
 - **Size**: ~3-4GB
 - **Features**: Full development environment
@@ -102,13 +102,13 @@ Exclude unnecessary files:
 ### Build Specific Image
 ```bash
 # Optimized CPU
-docker build -f docker/Dockerfile.optimized --target production -t merlai:optimized-cpu .
+docker build -f docker/Dockerfile --target production -t merlai:optimized-cpu .
 
 # Lightweight
 docker build -f docker/Dockerfile.lightweight --target production -t merlai:lightweight .
 
 # Development
-docker build -f docker/Dockerfile.optimized --target development -t merlai:optimized-dev .
+docker build -f docker/Dockerfile --target development -t merlai:optimized-dev .
 ```
 
 ### Run Images
