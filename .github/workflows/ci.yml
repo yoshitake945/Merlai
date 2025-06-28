@@ -3,23 +3,132 @@ name: CI
 on:
   push:
     branches: [ main, dev ]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'README.md'
-      - 'CHANGELOG.md'
   pull_request:
     branches: [ main, dev ]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'README.md'
-      - 'CHANGELOG.md'
   workflow_dispatch:
 
 jobs:
+  # 軽量チェック（ドキュメント変更時のみ）
+  quick-check:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' || 
+      github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check for documentation changes only
+        id: check-docs
+        run: |
+          # 変更されたファイルを取得
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # PRの場合
+            CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          else
+            # Pushの場合
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }})
+          fi
+          
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          # ファイルタイプを分類
+          DOC_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(md|txt|rst)$|^docs/|^README|^CHANGELOG|^LICENSE|^NOTICE' || true)
+          CODE_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(py|js|ts|java|cpp|c|h|go|rs)$|^merlai/|^tests/|^scripts/' || true)
+          DOCKER_FILES=$(echo "$CHANGED_FILES" | grep -E 'Dockerfile|docker-compose|\.dockerignore|docker/' || true)
+          
+          echo "Document files: $DOC_FILES"
+          echo "Code files: $CODE_FILES"
+          echo "Docker files: $DOCKER_FILES"
+          
+          if [ -n "$CODE_FILES" ]; then
+            echo "docs_only=false" >> $GITHUB_OUTPUT
+            echo "has_code_changes=true" >> $GITHUB_OUTPUT
+            echo "has_docker_changes=false" >> $GITHUB_OUTPUT
+            echo "Decision: Code changes detected, will run lint/typecheck/format"
+          elif [ -n "$DOCKER_FILES" ]; then
+            echo "docs_only=false" >> $GITHUB_OUTPUT
+            echo "has_code_changes=false" >> $GITHUB_OUTPUT
+            echo "has_docker_changes=true" >> $GITHUB_OUTPUT
+            echo "Decision: Docker changes detected, will run build"
+          elif [ -n "$DOC_FILES" ]; then
+            echo "docs_only=true" >> $GITHUB_OUTPUT
+            echo "has_code_changes=false" >> $GITHUB_OUTPUT
+            echo "has_docker_changes=false" >> $GITHUB_OUTPUT
+            echo "Decision: Documentation changes only, will run quick check"
+          else
+            echo "docs_only=false" >> $GITHUB_OUTPUT
+            echo "has_code_changes=false" >> $GITHUB_OUTPUT
+            echo "has_docker_changes=false" >> $GITHUB_OUTPUT
+            echo "Decision: No relevant changes, will run full pipeline"
+          fi
+          
+          echo "Output values:"
+          echo "docs_only: ${{ steps.check-docs.outputs.docs_only }}"
+          echo "has_code_changes: ${{ steps.check-docs.outputs.has_code_changes }}"
+          echo "has_docker_changes: ${{ steps.check-docs.outputs.has_docker_changes }}"
+      
+      - name: Skip if no relevant changes
+        if: |
+          steps.check-docs.outputs.docs_only == 'false' &&
+          steps.check-docs.outputs.has_code_changes == 'false' &&
+          steps.check-docs.outputs.has_docker_changes == 'false'
+        run: |
+          echo "No relevant changes detected, skipping quick check"
+          exit 0
+      
+      - name: Set up Python for code checks
+        if: steps.check-docs.outputs.has_code_changes == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Cache pip for code checks
+        if: steps.check-docs.outputs.has_code_changes == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies for code checks
+        if: steps.check-docs.outputs.has_code_changes == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+      
+      - name: Lint (flake8) - Quick Check
+        if: steps.check-docs.outputs.has_code_changes == 'true'
+        run: flake8 merlai/
+      
+      - name: Type check (mypy) - Quick Check
+        if: steps.check-docs.outputs.has_code_changes == 'true'
+        run: mypy merlai/
+      
+      - name: Format check (black) - Quick Check
+        if: steps.check-docs.outputs.has_code_changes == 'true'
+        run: black --check merlai/
+      
+      - name: Set up Python for docs check
+        if: steps.check-docs.outputs.docs_only == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Quick format check for docs
+        if: steps.check-docs.outputs.docs_only == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install black
+          black --check --diff .
+
+  # フルチェック（コード変更時）
   lint:
     runs-on: ubuntu-latest
+    needs: [quick-check]
+    if: needs.quick-check.outputs.docs_only == 'false' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -42,6 +151,8 @@ jobs:
 
   typecheck:
     runs-on: ubuntu-latest
+    needs: [quick-check]
+    if: needs.quick-check.outputs.docs_only == 'false' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -64,6 +175,8 @@ jobs:
 
   format:
     runs-on: ubuntu-latest
+    needs: [quick-check]
+    if: needs.quick-check.outputs.docs_only == 'false' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -86,7 +199,10 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, format]
+    needs: [quick-check, lint, typecheck, format]
+    if: |
+      needs.quick-check.outputs.has_code_changes == 'true' ||
+      github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -109,7 +225,11 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [quick-check, test]
+    if: |
+      needs.quick-check.outputs.has_docker_changes == 'true' ||
+      (needs.quick-check.outputs.has_code_changes == 'true' && needs.test.result == 'success') ||
+      github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       packages: write
@@ -147,38 +267,33 @@ jobs:
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=v0.1.0,enable={{is_default_branch}}
-      - name: Build and push optimized CPU image
-        uses: docker/build-push-action@v5
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
         with:
-          context: .
-          file: docker/Dockerfile
-          target: production
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
-      - name: Build and push lightweight image
+          driver-opts: |
+            image=moby/buildkit:v0.12.0
+      
+      - name: Build and push lightweight image only
         uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/Dockerfile.lightweight
           target: production
           push: true
-          tags: ${{ steps.meta.outputs.tags }}-lightweight
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
 
   notify:
     runs-on: ubuntu-latest
-    needs: [test, build]
+    needs: [quick-check, test, build]
     if: always()
     steps:
       - name: Notify Slack on Success
-        if: needs.test.result == 'success' && needs.build.result == 'success'
+        if: |
+          (needs.quick-check.result == 'success' || needs.quick-check.result == 'skipped') &&
+          (needs.test.result == 'success' || needs.test.result == 'skipped') &&
+          (needs.build.result == 'success' || needs.build.result == 'skipped')
         uses: 8398a7/action-slack@v3
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -194,7 +309,10 @@ jobs:
             • Workflow: ${{ github.workflow }}
 
       - name: Notify Slack on Failure
-        if: needs.test.result == 'failure' || needs.build.result == 'failure'
+        if: |
+          needs.quick-check.result == 'failure' ||
+          needs.test.result == 'failure' ||
+          needs.build.result == 'failure'
         uses: 8398a7/action-slack@v3
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -207,5 +325,4 @@ jobs:
             • Branch: ${{ github.ref_name }}
             • Commit: ${{ github.sha }}
             • Triggered by: ${{ github.actor }}
-            • Workflow: ${{ github.workflow }}
-            • [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) 
+            • Workflow: ${{ github.workflow }} 

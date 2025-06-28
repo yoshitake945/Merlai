@@ -62,18 +62,18 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
       
-      - name: Build and push lightweight image
+      - name: Build and push lightweight image only
         uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/Dockerfile.lightweight
           target: production
           push: true
-          tags: ${{ steps.meta.outputs.tags }}-lightweight
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
       
       - name: Build and push Docker image (GPU)
         uses: docker/build-push-action@v5
@@ -110,17 +110,15 @@ jobs:
           
           echo "### Docker Images" >> RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
-          echo "This release includes the following optimized Docker images:" >> RELEASE_NOTES.md
-          echo "- \`ghcr.io/${{ github.repository }}:{{version}}\` (Optimized CPU version - ~2GB)" >> RELEASE_NOTES.md
-          echo "- \`ghcr.io/${{ github.repository }}:{{version}}-lightweight\` (Lightweight version - ~450MB)" >> RELEASE_NOTES.md
+          echo "This release includes the following Docker images:" >> RELEASE_NOTES.md
+          echo "- \`ghcr.io/${{ github.repository }}:{{version}}\` (Lightweight version - ~450MB)" >> RELEASE_NOTES.md
           echo "- \`ghcr.io/${{ github.repository }}:{{version}}-gpu\` (GPU version)" >> RELEASE_NOTES.md
-          echo "- \`ghcr.io/${{ github.repository }}:{{major}}.{{minor}}\` (Optimized CPU version)" >> RELEASE_NOTES.md
-          echo "- \`ghcr.io/${{ github.repository }}:{{major}}\` (Optimized CPU version)" >> RELEASE_NOTES.md
-          echo "- \`ghcr.io/${{ github.repository }}:latest\` (Optimized CPU version)" >> RELEASE_NOTES.md
+          echo "- \`ghcr.io/${{ github.repository }}:{{major}}.{{minor}}\` (Lightweight version)" >> RELEASE_NOTES.md
+          echo "- \`ghcr.io/${{ github.repository }}:{{major}}\` (Lightweight version)" >> RELEASE_NOTES.md
+          echo "- \`ghcr.io/${{ github.repository }}:latest\` (Lightweight version)" >> RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
-          echo "**Size improvements:**" >> RELEASE_NOTES.md
-          echo "- Original: ~3.1GB → Optimized CPU: ~2GB (35% reduction)" >> RELEASE_NOTES.md
-          echo "- Lightweight: ~450MB (85% reduction)" >> RELEASE_NOTES.md
+          echo "**Note**: Optimized CPU version is temporarily unavailable due to CI/CD constraints." >> RELEASE_NOTES.md
+          echo "- Lightweight: ~450MB (85% reduction from original)" >> RELEASE_NOTES.md
       
       - name: Create GitHub Release
         uses: actions/create-release@v1
