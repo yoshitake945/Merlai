@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI pipeline not starting due to missing outputs section in quick-check job
 - Job dependency issues in GitHub Actions workflow
 - Pipeline execution flow optimization
+- README.md version numbers updated from v0.1.0 to v0.1.2 to match pyproject.toml
 
 ### Performance
 - **CI Pipeline Reliability**: Fixed pipeline startup issues

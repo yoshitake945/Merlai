@@ -74,8 +74,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}-gpu
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
-      
-      - name: Generate Release Notes
+
+          - name: Generate Release Notes
         id: release_notes
         run: |
           # 前回のタグから現在のタグまでのコミットを取得
