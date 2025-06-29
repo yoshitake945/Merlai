@@ -32,7 +32,14 @@ jobs:
           else
             # Pushの場合 - より安全な方法
             if [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
-              CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }})
+              # コミットハッシュの存在確認
+              if git rev-parse --verify "${{ github.event.before }}" >/dev/null 2>&1; then
+                CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }})
+              else
+                # コミットが存在しない場合（force push等）
+                echo "Warning: Previous commit ${{ github.event.before }} not found, checking all files"
+                CHANGED_FILES=$(git ls-files)
+              fi
             else
               # 初回プッシュや履歴が不完全な場合
               CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git ls-files)
