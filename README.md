@@ -83,8 +83,8 @@ docker run --gpus all -p 8000:8000 ghcr.io/your-org/merlai:latest-gpu
 ### Image Tags
 
 - `latest` - Latest lightweight version
-- `v0.1.0` - Specific version (lightweight)
-- `v0.1.0-gpu` - Specific version with GPU support
+- `v0.1.2` - Specific version (lightweight)
+- `v0.1.2-gpu` - Specific version with GPU support
 
 **Note**: Optimized CPU version (~2GB) is temporarily unavailable due to CI/CD constraints. The lightweight version provides excellent performance for most use cases.
 
