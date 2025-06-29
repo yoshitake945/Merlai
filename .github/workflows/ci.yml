@@ -241,9 +241,8 @@ jobs:
     needs: [quick-check, test]
     if: |
       needs.quick-check.outputs.has_docker_changes == 'true' ||
-      (needs.quick-check.outputs.has_code_changes == 'true' && needs.test.result == 'success') ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.test.result == 'success')
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.test.result == 'success') ||
+      github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       packages: write

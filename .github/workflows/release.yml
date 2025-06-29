@@ -62,16 +62,6 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64
       
-      - name: Build and push Docker image (GPU)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/Dockerfile.gpu
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}-gpu
-          labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64
-
       - name: Generate Release Notes
         id: release_notes
         run: |
@@ -97,12 +87,11 @@ jobs:
           echo "" >> RELEASE_NOTES.md
           echo "This release includes the following Docker images:" >> RELEASE_NOTES.md
           echo "- \`ghcr.io/${{ github.repository }}:{{version}}\` (Lightweight version - ~450MB)" >> RELEASE_NOTES.md
-          echo "- \`ghcr.io/${{ github.repository }}:{{version}}-gpu\` (GPU version)" >> RELEASE_NOTES.md
           echo "- \`ghcr.io/${{ github.repository }}:{{major}}.{{minor}}\` (Lightweight version)" >> RELEASE_NOTES.md
           echo "- \`ghcr.io/${{ github.repository }}:{{major}}\` (Lightweight version)" >> RELEASE_NOTES.md
           echo "- \`ghcr.io/${{ github.repository }}:latest\` (Lightweight version)" >> RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
-          echo "**Note**: Optimized CPU version is temporarily unavailable due to CI/CD constraints." >> RELEASE_NOTES.md
+          echo "**Note**: GPU version is available on-demand via manual build." >> RELEASE_NOTES.md
           echo "- Lightweight: ~450MB (85% reduction from original)" >> RELEASE_NOTES.md
       
       - name: Create GitHub Release
