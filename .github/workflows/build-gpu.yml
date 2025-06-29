@@ -1,0 +1,56 @@
+name: Build GPU Docker Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Docker image tag'
+        required: true
+        default: 'latest-gpu'
+      push:
+        description: 'Push to registry'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-gpu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:v0.12.0
+      
+      - name: Build GPU Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.gpu
+          push: ${{ inputs.push }}
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ inputs.tag }}
+            ghcr.io/${{ github.repository }}:gpu
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build Summary
+        run: |
+          echo "✅ GPU Docker image built successfully"
+          echo "📦 Image: ghcr.io/${{ github.repository }}:${{ inputs.tag }}"
+          echo "🚀 Push: ${{ inputs.push }}" 
