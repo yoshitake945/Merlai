@@ -74,7 +74,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}-gpu
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
-      
+          cache-from: type=gha
+          cache-to: type=gha,mode=max      
       - name: Generate Release Notes
         id: release_notes
         run: |

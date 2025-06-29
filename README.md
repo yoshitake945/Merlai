@@ -7,7 +7,7 @@ You provide the main melody – Merlai complements the rest with MIDI-ready sugg
 ## ⚠️ Important Notice / 重要な注記
 
 **AI-Assisted Development / AIアシスト開発:**
-本プロジェクトのほぼ全てのコード、設計、ドキュメントは、AIコーディングアシスタント（例: OpenAI GPT-4, GitHub Copilot等）を活用して作成されています。
+本プロジェクトのほぼすべてのコード、設計、ドキュメントは、AIコーディングアシスタント（例: OpenAI GPT-4, GitHub Copilot等）を活用して作成されています。
 開発者はPythonやその他の技術スタックに習熟しているわけではなく、AIの支援に大きく依存して開発を進めています。
 
 Almost all code, design, and documentation in this project were created with the assistance of AI coding tools (e.g., OpenAI GPT-4, GitHub Copilot, etc.).
@@ -23,8 +23,6 @@ This project has been implemented but **has not been tested for functionality**.
 技術的な議論や改善提案については、日本語でのコミュニケーションを推奨します。
 英語学習中であり、コミュニティからの理解と支援をいただけると幸いです。
 
-The developer is not fluent in English, so there may be unnatural expressions or mistakes in English.
-For technical discussions and improvement suggestions, Japanese communication is recommended.
 The developer is currently learning English and appreciates understanding and support from the community.
 
 **Code Quality / コード品質:**
@@ -83,8 +81,8 @@ docker run --gpus all -p 8000:8000 ghcr.io/your-org/merlai:latest-gpu
 ### Image Tags
 
 - `latest` - Latest lightweight version
-- `v0.1.0` - Specific version (lightweight)
-- `v0.1.0-gpu` - Specific version with GPU support
+- `v0.1.2` - Specific version (lightweight)
+- `v0.1.2-gpu` - Specific version with GPU support
 
 **Note**: Optimized CPU version (~2GB) is temporarily unavailable due to CI/CD constraints. The lightweight version provides excellent performance for most use cases.
 
@@ -203,7 +201,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
 ## 🆘 Support
 
