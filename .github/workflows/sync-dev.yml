@@ -33,4 +33,7 @@ jobs:
         run: |
           echo "🔄 Dev branch has been automatically synchronized with main"
           echo "📅 Sync time: $(date)"
-          echo "🔗 Main commit: $(git rev-parse --short HEAD)" 
+          echo "🔗 Main commit: $(git rev-parse --short HEAD)"
+
+permissions:
+  contents: write 
