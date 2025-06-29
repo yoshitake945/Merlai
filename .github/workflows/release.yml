@@ -58,11 +58,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-<<<<<<< HEAD
-=======
           cache-from: type=gha
           cache-to: type=gha,mode=max
->>>>>>> origin/main
           platforms: linux/amd64
       
       - name: Build and push Docker image (GPU)
@@ -73,10 +70,11 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}-gpu
           labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64
           cache-from: type=gha
-          cache-to: type=gha,mode=max      
-      - name: Generate Release Notes
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+          - name: Generate Release Notes
         id: release_notes
         run: |
           # 前回のタグから現在のタグまでのコミットを取得
