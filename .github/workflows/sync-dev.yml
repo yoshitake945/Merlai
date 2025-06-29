@@ -1,0 +1,36 @@
+name: Sync dev branch with main
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  sync-dev:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Configure Git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+      
+      - name: Sync dev branch with main
+        run: |
+          # devブランチをmainに同期
+          git checkout dev || git checkout -b dev
+          git reset --hard main
+          git push origin dev --force
+          
+          echo "✅ dev branch synchronized with main"
+      
+      - name: Create sync notification
+        run: |
+          echo "🔄 Dev branch has been automatically synchronized with main"
+          echo "📅 Sync time: $(date)"
+          echo "🔗 Main commit: $(git rev-parse --short HEAD)" 
