@@ -1,5 +1,9 @@
 # Merlai 🎵
 
+[![CI](https://github.com/yoshitake945/Merlai/actions/workflows/ci.yml/badge.svg)](https://github.com/yoshitake945/Merlai/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/yoshitake945/Merlai/branch/main/graph/badge.svg)](https://codecov.io/gh/yoshitake945/Merlai)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 **AI-powered music creation assistant that helps fill in missing notes using AI.**
 
 You provide the main melody – Merlai complements the rest with MIDI-ready suggestions.
