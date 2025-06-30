@@ -141,6 +141,13 @@ Detailed documentation is available in the [`docs/`](docs/) folder:
 - **[🔌 API Reference](docs/API.md)** - API仕様書 / API specification
 - **[🚀 Operations Guide](docs/OPERATIONS_GUIDE.md)** - 運用ガイド / Operations guide
 - **[🔧 Troubleshooting](docs/TROUBLESHOOTING.md)** - トラブルシューティング / Troubleshooting guide
+- **[API Documentation](docs/API.md)**
+- **[Contributing Guide](docs/CONTRIBUTING.md)**
+- **[Deployment Guide](docs/DEPLOYMENT.md)**
+- **[Branch Strategy & Troubleshooting](docs/BRANCH_STRATEGY.md)**
+- **[Operations Guide](docs/OPERATIONS_GUIDE.md)**
+- **[Security Guide](docs/SECURITY.md)**
+- **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)**
 
 ## 🎯 Features
 
