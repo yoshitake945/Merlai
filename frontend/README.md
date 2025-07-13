@@ -1,5 +1,8 @@
 # Merlai Frontend
 
+> ⚠️ **Prototype Notice:**
+> This frontend is currently in a prototype stage. Features, UI, and code structure are subject to major changes as development continues.
+
 This directory contains the frontend (React + Vite) application for the Merlai project.
 
 ---
