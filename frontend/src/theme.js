@@ -2,34 +2,35 @@ import { createTheme } from '@mui/material/styles';
 
 const theme = createTheme({
   palette: {
+    mode: 'dark',
     primary: {
-      main: '#AEEA00', // 明るい黄緑
-      contrastText: '#222',
+      main: '#222831', // Dark gray
+      contrastText: '#eeeeee',
     },
     secondary: {
-      main: '#B2FF59', // さらに淡い黄緑
-      contrastText: '#222',
+      main: '#393e46', // Deeper gray
+      contrastText: '#eeeeee',
     },
     background: {
-      default: '#f9fbe7', // ごく薄い黄緑系
-      paper: '#ffffff',
+      default: '#181920', // Almost black
+      paper: '#23272f',   // Dark paper
     },
   },
   shape: {
-    borderRadius: 12, // 角丸をやや大きめに
+    borderRadius: 12, // Slightly larger border radius
   },
   components: {
     MuiPaper: {
       styleOverrides: {
         root: {
-          boxShadow: 'none', // 影をなくしてフラットに
+          boxShadow: 'none', // Remove shadow for flat look
         },
       },
     },
     MuiButton: {
       styleOverrides: {
         root: {
-          textTransform: 'none', // ボタンの大文字化をやめる
+          textTransform: 'none', // No uppercase for buttons
           fontWeight: 600,
         },
       },

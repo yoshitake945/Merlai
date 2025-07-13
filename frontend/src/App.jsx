@@ -53,10 +53,10 @@ function TimelineTracks() {
     { name: 'Drums' },
   ]);
   const [trackColors, setTrackColors] = useState({
-    Vocal: '#ffd54f',
-    Piano: '#81d4fa',
-    Bass: '#a5d6a7',
-    Drums: '#ef9a9a',
+    Vocal: '#00adb5',   // Vivid teal
+    Piano: '#ffb300',   // Bright orange
+    Bass:  '#7c4dff',   // Bright purple
+    Drums: '#43a047',   // Vivid green
   });
   const [midiData, setMidiData] = useState({
     Vocal: [ { id: uuidv4(), start: 3, length: 2 }, { id: uuidv4(), start: 6, length: 2 } ],
@@ -273,37 +273,15 @@ function TimelineTracks() {
   // Context menu delete (use start/length)
   const handleContextMenuDelete = () => {
     if (!contextMenu) return;
-    console.log('Context menu delete', contextMenu, selectedNotes);
-    console.log('Before delete (context):', JSON.stringify(midiData));
-    // If right-clicked note is selected, delete all selected; else just this note
-    const isSelected = selectedNotes.some(sel => sel.track === contextMenu.track && sel.id === contextMenu.id);
-    if (isSelected && selectedNotes.length > 0) {
-      setMidiData(prev => {
-        const next = { ...prev };
-        const toDelete = {};
-        selectedNotes.forEach(({ track, id }) => {
-          if (!toDelete[track]) toDelete[track] = new Set();
-          toDelete[track].add(id);
-        });
-        Object.keys(toDelete).forEach(track => {
-          next[track] = next[track].filter(note => !toDelete[track].has(note.id)).map(n => ({...n}));
-        });
-        console.log('After delete (context):', JSON.stringify(next));
-        setTimeout(() => setForceUpdate(f => f + 1), 0);
-        return JSON.parse(JSON.stringify(next));
-      });
-      setSelectedNotes([]);
-    } else {
-      setMidiData(prev => {
-        const next = { ...prev };
-        next[contextMenu.track] = next[contextMenu.track].filter(note => note.id !== contextMenu.id).map(n => ({...n}));
-        console.log('After delete (context single):', JSON.stringify(next));
-        setTimeout(() => setForceUpdate(f => f + 1), 0);
-        return JSON.parse(JSON.stringify(next));
-      });
-      setSelectedNotes([]);
-    }
+    setMidiData(prev => {
+      // Always create new objects/arrays
+      const next = JSON.parse(JSON.stringify(prev));
+      next[contextMenu.track] = next[contextMenu.track].filter(note => note.id !== contextMenu.id);
+      return next;
+    });
+    setSelectedNotes([]);
     setContextMenu(null);
+    setForceUpdate(f => f + 1); // Force re-render
   };
 
   // Close context menu on click outside or Escape
@@ -318,6 +296,48 @@ function TimelineTracks() {
       window.removeEventListener('keydown', handleEsc);
     };
   }, [contextMenu]);
+
+  // State for note resizing
+  const [noteResizing, setNoteResizing] = useState(null); // {track, id, startX, origLength}
+
+  // Mouse events for note resizing
+  useEffect(() => {
+    if (!noteResizing) return;
+    const handleMouseMove = (e) => {
+      const dx = e.clientX - noteResizing.startX;
+      const delta = Math.round(dx / 64); // 1 measure = 64px
+      let newLength = noteResizing.origLength + delta;
+      newLength = Math.max(2, newLength); // Always allow shrinking to 2
+      // Ensure note does not extend past timeline
+      const note = midiData[noteResizing.track].find(n => n.id === noteResizing.id);
+      if (note) {
+        newLength = Math.min(newLength, 16 - note.start + 1);
+      }
+      // Debug log
+      console.log('Resizing note:', {
+        origLength: noteResizing.origLength,
+        delta,
+        newLength,
+        noteStart: note?.start,
+        noteId: noteResizing.id
+      });
+      setMidiData(prev => {
+        const next = JSON.parse(JSON.stringify(prev));
+        const idx = next[noteResizing.track].findIndex(n => n.id === noteResizing.id);
+        if (idx !== -1) {
+          next[noteResizing.track][idx].length = newLength;
+        }
+        return next;
+      });
+    };
+    const handleMouseUp = () => setNoteResizing(null);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [noteResizing, midiData]);
 
   return (
     <>
@@ -355,7 +375,7 @@ function TimelineTracks() {
                             pl: 2,
                             pr: 2,
                             textAlign: 'center',
-                            bgcolor: snapshot.isDragging ? '#ffe082' : '#e0f7fa',
+                            bgcolor: snapshot.isDragging ? '#393e46' : '#23272f',
                             fontWeight: 600,
                             border: 'none',
                             transition: 'all 0.2s',
@@ -397,7 +417,19 @@ function TimelineTracks() {
                         {/* Timeline grid for this track */}
                         <Box sx={{ display: 'flex', flex: 1, position: 'relative' }}>
                           {measures.map((m) => (
-                            <Box key={m} sx={{ width: 64, height: 32, border: '1px solid #e0e0e0', bgcolor: '#fff', position: 'relative', zIndex: 1, cursor: 'pointer' }} onClick={() => handleCellClick(track.name, m)} />
+                            <Box
+                              key={m}
+                              sx={{
+                                width: 64,
+                                height: 32,
+                                border: '1px solid #bdbdbd',
+                                bgcolor: '#e0e0e0', // Much lighter gray for strong contrast with MIDI notes
+                                position: 'relative',
+                                zIndex: 1,
+                                cursor: 'pointer'
+                              }}
+                              onClick={() => handleCellClick(track.name, m)}
+                            />
                           ))}
                           {/* Note bars */}
                           {console.log('Render notes for', track.name, midiData[track.name])}
@@ -412,7 +444,8 @@ function TimelineTracks() {
                                   width: note.length * 64 - 8,
                                   height: 24,
                                   top: 4,
-                                  bgcolor: isSelected ? '#fffde7' : trackColors[track.name],
+                                  bgcolor: trackColors[track.name], // Always use the track color as background
+                                  border: isSelected ? '2px solid #fff' : 'none', // White border when selected
                                   borderRadius: 2,
                                   zIndex: 2,
                                   boxShadow: isSelected ? '0 0 0 2px #fbc02d' : '0 1px 4px #0002',
@@ -421,10 +454,9 @@ function TimelineTracks() {
                                   pl: 1,
                                   fontWeight: 500,
                                   fontSize: 14,
-                                  color: '#333',
+                                  color: (track.name === 'Piano') ? '#222' : '#fff', // Usual text color
                                   overflow: 'hidden',
                                   cursor: dragInfo ? 'grabbing' : 'pointer',
-                                  border: isSelected ? '2px solid #fbc02d' : 'none',
                                   transition: 'all 0.2s',
                                   opacity: dragInfo && isSelected ? 0.7 : 1,
                                 }}
@@ -448,6 +480,29 @@ function TimelineTracks() {
                                 onContextMenu={e => handleNoteContextMenu(e, track.name, note.id)}
                               >
                                 {track.name} note
+                                {/* Resize handle at right edge of note bar */}
+                                <div
+                                  style={{
+                                    width: 8,
+                                    height: 24,
+                                    position: 'absolute',
+                                    right: 0,
+                                    top: 0,
+                                    cursor: 'ew-resize',
+                                    zIndex: 3,
+                                    background: noteResizing && noteResizing.id === note.id ? '#fff8' : 'transparent',
+                                    borderRadius: '0 2px 2px 0',
+                                  }}
+                                  onMouseDown={e => {
+                                    e.stopPropagation();
+                                    setNoteResizing({
+                                      track: track.name,
+                                      id: note.id,
+                                      startX: e.clientX,
+                                      origLength: note.length,
+                                    });
+                                  }}
+                                />
                               </Box>
                             );
                           })}
@@ -483,7 +538,15 @@ function TimelineTracks() {
           }}
           onClick={e => e.stopPropagation()}
         >
-          <Box sx={{ p: 1, cursor: 'pointer', ':hover': { bgcolor: '#ffe082' } }} onClick={handleContextMenuDelete}>
+          <Box
+            sx={{
+              p: 1,
+              cursor: 'pointer',
+              color: '#222', // Black text for visibility on white background
+              ':hover': { bgcolor: '#ffe082' }
+            }}
+            onClick={handleContextMenuDelete}
+          >
             Delete
           </Box>
         </Box>
@@ -497,6 +560,30 @@ function App() {
   // サイドバーの折りたたみ状態
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const handleSidebarToggle = () => setSidebarCollapsed((prev) => !prev);
+
+  // Sidebar width state for resizable sidebar
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_WIDTH); // Default 240px
+  const [sidebarResizing, setSidebarResizing] = useState(false);
+  const sidebarResizeStartX = useRef(null);
+  const sidebarResizeStartWidth = useRef(null);
+
+  // Mouse events for sidebar resizing
+  useEffect(() => {
+    if (!sidebarResizing) return;
+    const handleMouseMove = (e) => {
+      const dx = e.clientX - sidebarResizeStartX.current;
+      let newWidth = sidebarResizeStartWidth.current + dx;
+      newWidth = Math.max(120, Math.min(400, newWidth)); // Min 120px, Max 400px
+      setSidebarWidth(newWidth);
+    };
+    const handleMouseUp = () => setSidebarResizing(false);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [sidebarResizing]);
 
   const handleCompose = () => {
     setResult('AI composed a song!');
@@ -521,7 +608,7 @@ function App() {
             <Paper
               elevation={1}
               sx={{
-                width: sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH,
+                width: sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth, // Use resizable width
                 transition: 'width 0.2s',
                 height: 'calc(100vh - 64px)',
                 position: 'fixed',
@@ -534,6 +621,7 @@ function App() {
                 borderRight: '1px solid #e0e0e0',
                 zIndex: 1200,
                 p: 0,
+                userSelect: sidebarResizing ? 'none' : undefined,
               }}
             >
               <Box sx={{ flex: 1, width: '100%', mt: 2 }}>
@@ -554,12 +642,39 @@ function App() {
                   {sidebarCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
                 </IconButton>
               </Box>
+              {/* Resize handle at the right edge of the sidebar */}
+              {!sidebarCollapsed && (
+                <div
+                  style={{
+                    width: 8,
+                    height: '100%',
+                    cursor: 'ew-resize',
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    zIndex: 2,
+                    background: sidebarResizing ? '#00adb544' : 'transparent',
+                  }}
+                  onMouseDown={e => {
+                    sidebarResizeStartX.current = e.clientX;
+                    sidebarResizeStartWidth.current = sidebarWidth;
+                    setSidebarResizing(true);
+                  }}
+                />
+              )}
             </Paper>
             {/* メインコンテンツ */}
-            <Box sx={{ flex: 1, ml: sidebarCollapsed ? `${SIDEBAR_COLLAPSED_WIDTH}px` : `${SIDEBAR_WIDTH}px`, transition: 'margin-left 0.2s', p: { xs: 1, sm: 3 } }}>
-              {/* DAWタイムライン＋トラックレイアウト */}
+            <Box
+              sx={{
+                flex: 1,
+                ml: sidebarCollapsed ? `${SIDEBAR_COLLAPSED_WIDTH}px` : `${sidebarWidth}px`, // Match margin-left to sidebar width
+                transition: 'margin-left 0.2s',
+                p: { xs: 1, sm: 3 }
+              }}
+            >
+              {/* DAW timeline and track layout */}
               <TimelineTracks />
-              {/* 今後: Home画面や他画面も追加可 */}
+              {/* Other screens can be added here in the future */}
             </Box>
           </Box>
         </Box>
