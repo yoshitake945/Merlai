@@ -1,7 +1,7 @@
 import os
 from typing import Any, Dict, Optional
 
-import yaml  # type: ignore
+import yaml
 
 
 class Config:
