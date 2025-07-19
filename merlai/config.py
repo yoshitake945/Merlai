@@ -3,7 +3,6 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-
 class Config:
     """
     Common configuration loader for Merlai.
