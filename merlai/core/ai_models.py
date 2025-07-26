@@ -6,6 +6,7 @@ including Hugging Face models, external APIs, and custom implementations.
 """
 
 import logging
+import os
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -13,6 +14,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union, cast
 
 import requests
+import yaml
 
 from .types import Bass, Chord, Drums, Harmony, Melody, Note
 
@@ -446,6 +448,38 @@ class ExternalAPIModel(AIModelInterface):
         return GenerationResponse(success=False, error_message=msg)
 
 
+# DummyModel for test use only (do not use in production)
+class DummyModel(AIModelInterface):
+    def is_available(self) -> bool:
+        return True
+
+    def get_model_info(self) -> dict:
+        return {"name": self.config.name, "type": self.config.type.value}
+
+    def generate_harmony(self, request: object) -> GenerationResponse:
+        return GenerationResponse(
+            success=True, result=None, model_name=self.model_name, generation_time=0.0
+        )
+
+    def generate_bass(self, request: object) -> GenerationResponse:
+        return GenerationResponse(
+            success=True, result=None, model_name=self.model_name, generation_time=0.0
+        )
+
+    def generate_drums(self, request: object) -> GenerationResponse:
+        return GenerationResponse(
+            success=True, result=None, model_name=self.model_name, generation_time=0.0
+        )
+
+    def analyze_music(self, midi_data: object) -> GenerationResponse:
+        return GenerationResponse(
+            success=True, result=None, model_name=self.model_name, generation_time=0.0
+        )
+
+    def unload_model(self) -> None:
+        pass
+
+
 class AIModelManager:
     """Manager for AI models."""
 
@@ -476,6 +510,9 @@ class AIModelManager:
                 model = HuggingFaceModel(config)
             elif config.type == ModelType.EXTERNAL_API:
                 model = ExternalAPIModel(config)
+            elif config.type in (ModelType.CUSTOM, ModelType.LOCAL):
+                logger.error(f"Unsupported model type for production: {config.type}")
+                return False
             else:
                 logger.error(f"Unsupported model type: {config.type}")
                 return False
@@ -703,3 +740,37 @@ class AIModelManager:
                 "endpoint": model.config.endpoint,
             },
         }
+
+    def load_from_config(self, config_path: Optional[str] = None) -> bool:
+        config_path = config_path or os.path.expanduser("~/.merlai/config.yaml")
+        if not os.path.exists(config_path):
+            logger.warning(f"Configuration file not found at {config_path}")
+            return False
+        try:
+            with open(config_path, "r") as f:
+                conf = yaml.safe_load(f)
+            models_conf = conf.get("ai_models", {})
+            default_name = models_conf.get("default")
+            available = models_conf.get("available", [])
+            loaded = False
+            for m in available:
+                try:
+                    model_config = ModelConfig(
+                        name=m["name"],
+                        type=ModelType(m["type"]),
+                        model_path=m.get("model_path"),
+                        local_path=m.get("local_path"),
+                        api_key=m.get("api_key"),
+                        endpoint=m.get("endpoint"),
+                        parameters=m.get("parameters", {}),
+                    )
+                    if self.register_model(model_config):
+                        loaded = True
+                except Exception as e:
+                    logger.error(f"Failed to load model config: {m} ({e})")
+            if default_name:
+                self.set_default_model(default_name)
+            return loaded
+        except Exception as e:
+            logger.error(f"Failed to load AI models from config: {e}")
+            return False
