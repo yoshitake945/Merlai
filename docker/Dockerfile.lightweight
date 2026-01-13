@@ -14,6 +14,12 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY README.md ./
 
+# Create non-root user and install dependencies in user space.
+# This avoids PATH warnings about scripts installed into /root/.local/bin.
+RUN adduser -D -u 1000 merlai
+USER merlai
+ENV PATH="/home/merlai/.local/bin:$PATH"
+
 # Install lightweight dependencies only
 RUN pip install --user --no-cache-dir -e .[lightweight]
 
@@ -22,14 +28,11 @@ FROM python:3.11-alpine AS production
 
 # Install minimal runtime dependencies
 RUN apk add --no-cache \
-    libsndfile-dev \
+    libsndfile \
     curl \
     && rm -rf /var/cache/apk/*
 
 WORKDIR /app
-
-# Copy Python packages from builder
-COPY --from=builder /root/.local /root/.local
 
 # Copy application code (excluding AI models)
 COPY merlai/ ./merlai/
@@ -39,10 +42,13 @@ COPY README.md ./
 RUN adduser -D -u 1000 merlai && \
     chown -R merlai:merlai /app
 
+# Copy Python packages from builder
+COPY --from=builder /home/merlai/.local /home/merlai/.local
+
 USER merlai
 
 # Add local bin to PATH
-ENV PATH=/root/.local/bin:$PATH
+ENV PATH="/home/merlai/.local/bin:$PATH"
 
 EXPOSE 8000
 
