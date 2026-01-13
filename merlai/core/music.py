@@ -3,10 +3,18 @@ Music generation core functionality.
 """
 
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any, List, Optional, cast
 
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+try:
+    import torch  # type: ignore
+except ImportError:  # pragma: no cover
+    torch = None  # type: ignore
+
+try:
+    from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
+except ImportError:  # pragma: no cover
+    AutoModelForCausalLM = None  # type: ignore
+    AutoTokenizer = None  # type: ignore
 
 from .ai_models import AIModelManager, GenerationRequest, ModelConfig, ModelType
 from .types import Bass, Chord, Drums, Harmony, Melody, Note
@@ -34,7 +42,11 @@ class MusicGenerator:
         self.model_path = model_path or "microsoft/DialoGPT-medium"
         self.tokenizer: Optional[Any] = None
         self.model: Any = None
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if torch is not None:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        else:
+            # Torch is optional unless legacy model loading is used.
+            self.device = "cpu"
         self.config = GenerationConfig()
 
         # AI model integration
@@ -71,10 +83,17 @@ class MusicGenerator:
             return
         # Legacy model loading
         try:
+            if AutoTokenizer is None or AutoModelForCausalLM is None:
+                raise RuntimeError(
+                    "transformers is not installed; cannot load legacy model"
+                )
+            if torch is None:
+                raise RuntimeError("torch is not installed; cannot load legacy model")
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
             self.model = AutoModelForCausalLM.from_pretrained(self.model_path)
             if self.model is not None:
-                self.model.to(self.device)
+                if torch is not None:
+                    self.model.to(cast(Any, self.device))
                 self.model.eval()
         except Exception as e:
             print(e)
@@ -126,6 +145,10 @@ class MusicGenerator:
 
     def _generate_harmony_legacy(self, melody: Melody, style: str) -> Harmony:
         try:
+            if torch is None or AutoTokenizer is None or AutoModelForCausalLM is None:
+                # If heavy ML deps aren't installed, gracefully fall back to a basic
+                # rule-based harmony generator.
+                return self._generate_basic_harmony(melody, style)
             if self.model is None or self.tokenizer is None:
                 self.load_model()
                 if self.model is None or self.tokenizer is None:
@@ -136,7 +159,7 @@ class MusicGenerator:
             melody_tokens = self._melody_to_tokens(melody)
 
             # Generate harmony tokens
-            with torch.no_grad():
+            with torch.no_grad():  # type: ignore[union-attr]
                 if self.tokenizer is None or self.model is None:
                     return self._generate_basic_harmony(melody, style)
                 inputs = self.tokenizer.encode(melody_tokens, return_tensors="pt")
