@@ -5,6 +5,9 @@ Music generation core functionality.
 from dataclasses import dataclass
 from typing import Any, List, Optional, cast
 
+from .ai_models import AIModelManager, GenerationRequest, ModelConfig, ModelType
+from .types import Bass, Chord, Drums, Harmony, Melody, Note
+
 # Heavy ML dependencies are optional unless legacy model loading is used.
 torch: Any = None
 AutoModelForCausalLM: Any = None
@@ -25,9 +28,6 @@ try:  # pragma: no cover
     AutoTokenizer = _AutoTokenizer
 except ImportError:
     pass
-
-from .ai_models import AIModelManager, GenerationRequest, ModelConfig, ModelType
-from .types import Bass, Chord, Drums, Harmony, Melody, Note
 
 
 @dataclass
