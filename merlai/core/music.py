@@ -323,6 +323,9 @@ class MusicGenerator:
     def _generate_drums_legacy(self, melody: Melody, tempo: int) -> Drums:
         """Legacy drum pattern generation method."""
         # Implementation for drum pattern generation
+        if tempo <= 0:
+            # Gracefully handle invalid tempo values (tests expect no exception).
+            return Drums(notes=[])
         drum_notes = []
         beats_per_bar = 4
         beat_duration = 60.0 / tempo
