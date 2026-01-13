@@ -5,16 +5,26 @@ Music generation core functionality.
 from dataclasses import dataclass
 from typing import Any, List, Optional, cast
 
-try:
-    import torch  # type: ignore
-except ImportError:  # pragma: no cover
-    torch = None  # type: ignore
+# Heavy ML dependencies are optional unless legacy model loading is used.
+torch: Any = None
+AutoModelForCausalLM: Any = None
+AutoTokenizer: Any = None
 
-try:
-    from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
-except ImportError:  # pragma: no cover
-    AutoModelForCausalLM = None  # type: ignore
-    AutoTokenizer = None  # type: ignore
+try:  # pragma: no cover
+    import torch as _torch
+
+    torch = _torch
+except ImportError:
+    pass
+
+try:  # pragma: no cover
+    from transformers import AutoModelForCausalLM as _AutoModelForCausalLM
+    from transformers import AutoTokenizer as _AutoTokenizer
+
+    AutoModelForCausalLM = _AutoModelForCausalLM
+    AutoTokenizer = _AutoTokenizer
+except ImportError:
+    pass
 
 from .ai_models import AIModelManager, GenerationRequest, ModelConfig, ModelType
 from .types import Bass, Chord, Drums, Harmony, Melody, Note
@@ -149,6 +159,8 @@ class MusicGenerator:
                 # If heavy ML deps aren't installed, gracefully fall back to a basic
                 # rule-based harmony generator.
                 return self._generate_basic_harmony(melody, style)
+            # Help mypy understand torch is non-optional below.
+            assert torch is not None
             if self.model is None or self.tokenizer is None:
                 self.load_model()
                 if self.model is None or self.tokenizer is None:
@@ -159,7 +171,7 @@ class MusicGenerator:
             melody_tokens = self._melody_to_tokens(melody)
 
             # Generate harmony tokens
-            with torch.no_grad():  # type: ignore[union-attr]
+            with torch.no_grad():
                 if self.tokenizer is None or self.model is None:
                     return self._generate_basic_harmony(melody, style)
                 inputs = self.tokenizer.encode(melody_tokens, return_tensors="pt")
