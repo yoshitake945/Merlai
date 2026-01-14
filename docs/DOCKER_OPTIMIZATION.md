@@ -9,10 +9,10 @@ Due to CI/CD pipeline constraints, Merlai currently provides two Docker image va
    - 85% size reduction from original
    - Suitable for most use cases
 
-2. **Optimized CPU Version** (~2GB) - **Temporarily Unavailable**
+2. **Optimized CPU Version** (~2GB) - **Available**
    - Full AI model support without GPU
    - 35% size reduction from original
-   - Currently disabled due to CI/CD build issues
+   - Enforces CPU-only PyTorch wheels to avoid pulling CUDA runtime dependencies
 
 ## Lightweight Version Details
 
@@ -41,7 +41,7 @@ docker images | grep merlai
 
 ## Future Optimizations
 
-When CI/CD constraints are resolved, we plan to reintroduce the optimized CPU version with:
+We plan to continue improving the optimized CPU version with:
 
 ### Multi-Stage Build Strategy
 ```dockerfile
@@ -62,6 +62,14 @@ ENV PATH=/root/.local/bin:$PATH
 - Use `--no-deps` for specific packages
 - Remove unnecessary build tools
 - Optimize Python package installation
+
+### CPU-only PyTorch (important)
+On Linux, `pip install torch` from PyPI can pull CUDA runtime dependencies and dramatically inflate image size.
+The optimized CPU Dockerfile forces CPU-only wheels via the official PyTorch index:
+
+```bash
+pip install --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple torch
+```
 
 ### Layer Optimization
 - Combine RUN commands
