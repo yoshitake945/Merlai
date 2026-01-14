@@ -60,12 +60,9 @@ CMD ["merlai", "serve", "--host", "0.0.0.0", "--port", "8000"]
 # Development stage (optional)
 FROM production AS development
 
-USER root
-
-# Install development dependencies
+# Install development dependencies as the non-root user to avoid
+# "script is installed in ... which is not on PATH" warnings.
 RUN pip install --user --no-cache-dir -e .[dev]
-
-USER merlai
 
 EXPOSE 8000 8001
 
@@ -87,4 +84,9 @@ USER merlai
 
 EXPOSE 8000
 
-CMD ["python", "-m", "merlai.inference.server"] 
+CMD ["python", "-m", "merlai.inference.server"]
+
+# Default stage
+# - Keeps `docker build -f docker/Dockerfile .` producing the slim `production` image
+# - Still allows `--target development` and `--target gpu-inference` usage
+FROM production AS final

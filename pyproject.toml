@@ -77,13 +77,8 @@ dev = [
     "pre-commit>=3.3.0",
     "click[testing]>=8.1.0",
     "httpx>=0.24.0",
-    # Include AI dependencies for testing
-    "torch[cpu]>=2.0.0",
-    "torchaudio[cpu]>=2.0.0",
+    # Keep dev dependencies lightweight; AI/ML stacks belong in cpu/gpu extras.
     "transformers>=4.30.0",
-    "diffusers>=0.20.0",
-    "accelerate>=0.20.0",
-    "librosa>=0.10.0",
 ]
 test = [
     "pytest>=7.3.0",
@@ -94,13 +89,8 @@ test = [
     "pytest-xdist>=3.2.0",
     "click[testing]>=8.1.0",
     "httpx>=0.24.0",
-    # Include AI dependencies for testing
-    "torch[cpu]>=2.0.0",
-    "torchaudio[cpu]>=2.0.0",
+    # Tests use mocks for ML models; avoid pulling full torch stack.
     "transformers>=4.30.0",
-    "diffusers>=0.20.0",
-    "accelerate>=0.20.0",
-    "librosa>=0.10.0",
 ]
 cpu = [
     "torch[cpu]>=2.0.0",
