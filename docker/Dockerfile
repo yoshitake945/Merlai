@@ -24,7 +24,24 @@ RUN useradd --create-home --shell /bin/bash merlai
 USER merlai
 ENV PATH="/home/merlai/.local/bin:$PATH"
 WORKDIR /app
-RUN pip install --user --no-cache-dir -e .[cpu,ai]
+# Keep pip quiet and avoid caching layer bloat
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# NOTE:
+# `pip install torch` from PyPI can pull CUDA runtime dependencies on Linux.
+# To keep the CPU image small, force CPU-only wheels via the official PyTorch index.
+ARG PYTORCH_CPU_INDEX_URL="https://download.pytorch.org/whl/cpu"
+
+# Install core deps + app
+RUN pip install --user --no-cache-dir -e .
+
+# Install AI deps with CPU-only torch
+RUN pip install --user --no-cache-dir \
+        --index-url "${PYTORCH_CPU_INDEX_URL}" \
+        --extra-index-url "https://pypi.org/simple" \
+        torch \
+    && pip install --user --no-cache-dir transformers librosa
 
 # Production stage
 FROM python:3.11-slim AS production
@@ -60,12 +77,9 @@ CMD ["merlai", "serve", "--host", "0.0.0.0", "--port", "8000"]
 # Development stage (optional)
 FROM production AS development
 
-USER root
-
-# Install development dependencies
+# Install development dependencies as the non-root user to avoid
+# "script is installed in ... which is not on PATH" warnings.
 RUN pip install --user --no-cache-dir -e .[dev]
-
-USER merlai
 
 EXPOSE 8000 8001
 
@@ -87,4 +101,9 @@ USER merlai
 
 EXPOSE 8000
 
-CMD ["python", "-m", "merlai.inference.server"] 
+CMD ["python", "-m", "merlai.inference.server"]
+
+# Default stage
+# - Keeps `docker build -f docker/Dockerfile .` producing the slim `production` image
+# - Still allows `--target development` and `--target gpu-inference` usage
+FROM production AS final
