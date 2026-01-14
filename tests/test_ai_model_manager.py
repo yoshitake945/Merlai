@@ -54,7 +54,7 @@ class DummyModel(AIModelInterface):
 
 
 # Patch AIModelManager for tests to always use DummyModel
-class TestAIModelManager(AIModelManager):
+class DummyAIModelManager(AIModelManager):
     def register_model(self, config: Optional[ModelConfig]) -> bool:
         if config is None or config.name in self.models:
             return False
@@ -112,7 +112,7 @@ def dummy_config(name: str = "dummy", type=DUMMY_TYPE) -> ModelConfig:
 
 
 def test_register_and_list_models() -> None:
-    mgr = TestAIModelManager()
+    mgr = DummyAIModelManager()
     cfg1 = dummy_config("m1", DUMMY_TYPE)
     cfg2 = dummy_config("m2", DUMMY_TYPE)
     assert mgr.register_model(cfg1) is True
@@ -121,14 +121,14 @@ def test_register_and_list_models() -> None:
 
 
 def test_duplicate_registration() -> None:
-    mgr = TestAIModelManager()
+    mgr = DummyAIModelManager()
     cfg = dummy_config("dup", DUMMY_TYPE)
     assert mgr.register_model(cfg) is True
     assert mgr.register_model(cfg) is False  # Duplicate
 
 
 def test_get_and_remove_model() -> None:
-    mgr = TestAIModelManager()
+    mgr = DummyAIModelManager()
     cfg = dummy_config("to_remove", DUMMY_TYPE)
     mgr.register_model(cfg)
     assert mgr.get_model("to_remove") is not None
@@ -137,7 +137,7 @@ def test_get_and_remove_model() -> None:
 
 
 def test_set_and_get_default_model() -> None:
-    mgr = TestAIModelManager()
+    mgr = DummyAIModelManager()
     cfg1 = dummy_config("d1", DUMMY_TYPE)
     cfg2 = dummy_config("d2", DUMMY_TYPE)
     mgr.register_model(cfg1)
@@ -158,7 +158,14 @@ def test_load_from_config() -> None:
         }
     }
     path = make_temp_config(config_data)
-    os.remove(path)
+    try:
+        mgr = DummyAIModelManager()
+        loaded = mgr.load_from_config(path)
+        assert loaded is True
+        assert set(mgr.list_models()) == {"test-model", "api-model"}
+        assert mgr.default_model == "test-model"
+    finally:
+        os.remove(path)
 
 
 @pytest.mark.skip(
@@ -239,7 +246,7 @@ def test_ai_model_manager_load_from_config_missing_params() -> None:
 
 def test_ai_model_manager_load_from_config_with_params() -> None:
     """
-    Test TestAIModelManager.load_from_config with all required parameters (should succeed).
+    Test DummyAIModelManager.load_from_config with all required parameters (should succeed).
     """
     import tempfile
 
@@ -269,7 +276,7 @@ def test_ai_model_manager_load_from_config_with_params() -> None:
         temp_path = tf.name
 
     try:
-        mgr = TestAIModelManager()
+        mgr = DummyAIModelManager()
         loaded = mgr.load_from_config(temp_path)
         assert (
             loaded is True

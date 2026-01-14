@@ -32,9 +32,36 @@ print_error() {
 # Function to check if virtual environment is activated
 check_venv() {
     if [[ "$VIRTUAL_ENV" == "" ]]; then
-        print_error "Virtual environment is not activated. Please activate it first:"
-        echo "source venv/bin/activate"
-        exit 1
+        if [[ -f "venv/bin/activate" ]]; then
+            print_warning "Virtual environment is not active. Activating ./venv..."
+            # shellcheck disable=SC1091
+            source venv/bin/activate
+        else
+            print_warning "Virtual environment not found. Creating ./venv..."
+            if ! command -v python3 >/dev/null 2>&1; then
+                print_error "python3 not found. Please install Python 3 and try again."
+                exit 1
+            fi
+
+            if ! python3 -m venv venv; then
+                print_error "Failed to create venv. On Ubuntu/Debian you may need:"
+                echo "  sudo apt install -y python3-venv"
+                exit 1
+            fi
+
+            # shellcheck disable=SC1091
+            source venv/bin/activate
+
+            print_status "Upgrading pip..."
+            python -m pip install -U pip >/dev/null
+
+            print_status "Installing test dependencies into venv..."
+            # Prefer project-defined extras; fallback to lightweight test deps.
+            if ! python -m pip install -e ".[test]"; then
+                print_warning "Failed to install '.[test]'. Falling back to minimal test deps."
+                install_test_deps
+            fi
+        fi
     fi
     print_success "Virtual environment is active: $VIRTUAL_ENV"
 }
