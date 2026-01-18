@@ -112,6 +112,7 @@ async def generate_music(
             )
         # Generate MIDI data
         midi_data = midi_generator.merge_tracks(tracks)
+        duration = _calculate_tracks_duration(tracks)
         # Extract harmony chords for response
         try:
             midi_str = (
@@ -122,7 +123,7 @@ async def generate_music(
                 bass_line=bass_line.notes if bass_line is not None else None,
                 drums=drums.notes if drums is not None else None,
                 midi_data=midi_str,
-                duration=4.0,  # TODO: Calculate actual duration
+                duration=duration,
                 success=True,
             )
         except Exception:
@@ -616,3 +617,14 @@ def _chord_to_notes(chord: Chord) -> List[Note]:
             )
             notes.append(note)
     return notes
+
+
+def _calculate_tracks_duration(tracks: List[Track]) -> float:
+    """Calculate the duration (in seconds) from the latest note end time."""
+    max_end = 0.0
+    for track in tracks:
+        for note in track.notes:
+            note_end = note.start_time + note.duration
+            if note_end > max_end:
+                max_end = note_end
+    return max_end
