@@ -126,7 +126,6 @@ lightweight = [
 ]
 docker = [
     "docker>=6.1.0",
-    "kubernetes>=26.1.0",
 ]
 
 [project.scripts]
