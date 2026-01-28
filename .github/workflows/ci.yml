@@ -58,26 +58,34 @@ jobs:
           echo "Code files: $CODE_FILES"
           echo "Docker files: $DOCKER_FILES"
           
+          has_code_changes=false
+          has_docker_changes=false
+          docs_only=false
+
           if [ -n "$CODE_FILES" ]; then
-            echo "docs_only=false" >> $GITHUB_OUTPUT
-            echo "has_code_changes=true" >> $GITHUB_OUTPUT
-            echo "has_docker_changes=false" >> $GITHUB_OUTPUT
-            echo "Decision: Code changes detected, will run full quality checks"
-          elif [ -n "$DOCKER_FILES" ]; then
-            echo "docs_only=false" >> $GITHUB_OUTPUT
-            echo "has_code_changes=false" >> $GITHUB_OUTPUT
-            echo "has_docker_changes=true" >> $GITHUB_OUTPUT
-            echo "Decision: Docker changes detected, will run build"
-          elif [ -n "$DOC_FILES" ]; then
-            echo "docs_only=true" >> $GITHUB_OUTPUT
-            echo "has_code_changes=false" >> $GITHUB_OUTPUT
-            echo "has_docker_changes=false" >> $GITHUB_OUTPUT
+            has_code_changes=true
+          fi
+          if [ -n "$DOCKER_FILES" ]; then
+            has_docker_changes=true
+          fi
+          if [ -n "$DOC_FILES" ] && [ "$has_code_changes" = "false" ] && [ "$has_docker_changes" = "false" ]; then
+            docs_only=true
+          fi
+
+          echo "docs_only=$docs_only" >> $GITHUB_OUTPUT
+          echo "has_code_changes=$has_code_changes" >> $GITHUB_OUTPUT
+          echo "has_docker_changes=$has_docker_changes" >> $GITHUB_OUTPUT
+
+          if [ "$docs_only" = "true" ]; then
             echo "Decision: Documentation changes only, will run quick check"
+          elif [ "$has_code_changes" = "true" ] && [ "$has_docker_changes" = "true" ]; then
+            echo "Decision: Code + Docker changes detected, will run full checks and build"
+          elif [ "$has_code_changes" = "true" ]; then
+            echo "Decision: Code changes detected, will run full quality checks"
+          elif [ "$has_docker_changes" = "true" ]; then
+            echo "Decision: Docker changes detected, will run build"
           else
-            echo "docs_only=false" >> $GITHUB_OUTPUT
-            echo "has_code_changes=false" >> $GITHUB_OUTPUT
-            echo "has_docker_changes=false" >> $GITHUB_OUTPUT
-            echo "Decision: No relevant changes, will run full pipeline"
+            echo "Decision: No relevant changes detected"
           fi
           
           echo "Output values:"
