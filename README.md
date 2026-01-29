@@ -137,17 +137,13 @@ curl -X POST http://localhost:8000/api/v1/generate \
 Detailed documentation is available in the [`docs/`](docs/) folder:
 
 - **[📖 Documentation Overview](docs/README.md)** - ドキュメント一覧 / Documentation index
-- **[🏗️ Architecture](docs/ARCHITECTURE.md)** - システム設計 / System design
 - **[🔌 API Reference](docs/API.md)** - API仕様書 / API specification
-- **[🚀 Operations Guide](docs/OPERATIONS_GUIDE.md)** - 運用ガイド / Operations guide
-- **[🔧 Troubleshooting](docs/TROUBLESHOOTING.md)** - トラブルシューティング / Troubleshooting guide
-- **[API Documentation](docs/API.md)**
-- **[Contributing Guide](docs/CONTRIBUTING.md)**
-- **[Deployment Guide](docs/DEPLOYMENT.md)**
-- **[Branch Strategy & Troubleshooting](docs/BRANCH_STRATEGY.md)**
-- **[Operations Guide](docs/OPERATIONS_GUIDE.md)**
-- **[Security Guide](docs/SECURITY.md)**
-- **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)**
+- **[🤖 AI Model Management](docs/AI_MODEL_MANAGEMENT.md)** - モデル管理設計 / AI model management
+- **[🧭 Branch Strategy](docs/BRANCH_STRATEGY.md)** - ブランチ運用 / Branching strategy
+- **[🛠️ Contributing](docs/CONTRIBUTING.md)** - 開発・貢献ガイド / Contributing guide
+- **[🔒 Security](docs/SECURITY.md)** - セキュリティ / Security guide
+- **[🧯 Troubleshooting](docs/TROUBLESHOOTING.md)** - トラブルシューティング / Troubleshooting
+- **[🔔 Slack Setup](docs/SLACK_SETUP.md)** - CI通知設定 / Slack notifications (optional)
 
 ## 🎯 Features
 
@@ -168,7 +164,7 @@ Merlai follows a modular architecture with clear separation of concerns:
 - **Plugin System**: Manages external sound plugins
 - **API Layer**: RESTful API for external integration
 
-For detailed architecture information, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+For architecture-related references, see [docs/README.md](docs/README.md).
 
 ## 🔧 Development
 
