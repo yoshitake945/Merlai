@@ -20,11 +20,16 @@ Merlai provides a RESTful API for AI-powered music generation. The API allows yo
 - Development: `http://localhost:8000`
 - Production: `https://api.merlai.com` (planned)
 
+Most endpoints are versioned under `/api/v1`:
+- Development API base: `http://localhost:8000/api/v1`
+
 ## Authentication
 
 Currently, the API does not require authentication. Future versions will implement JWT-based authentication.
 
 ## Endpoints
+
+Unless noted, endpoints below are under `/api/v1`.
 
 ### Health Check
 
@@ -36,8 +41,8 @@ Check if the API server is running.
 ```json
 {
   "status": "healthy",
-  "timestamp": "2024-01-01T00:00:00Z",
-  "version": "1.0.0"
+  "model_loaded": true,
+  "plugins_loaded": 0
 }
 ```
 
@@ -50,12 +55,7 @@ Check if the API server is ready to handle requests.
 **Response:**
 ```json
 {
-  "status": "ready",
-  "services": {
-    "ai_model": "ready",
-    "midi_generator": "ready",
-    "plugin_manager": "ready"
-  }
+  "status": "ready"
 }
 ```
 
@@ -70,13 +70,13 @@ Generate complementary music parts from a melody.
 {
   "melody": [
     {
-      "note": "C4",
+      "pitch": 60,
       "duration": 1.0,
       "velocity": 80,
       "start_time": 0.0
     },
     {
-      "note": "E4", 
+      "pitch": 64,
       "duration": 1.0,
       "velocity": 80,
       "start_time": 1.0
@@ -93,9 +93,9 @@ Generate complementary music parts from a melody.
 
 **Parameters:**
 - `melody` (array): Array of note objects
-  - `note` (string): Note name (e.g., "C4", "F#3")
+  - `pitch` (integer): MIDI pitch (0-127)
   - `duration` (float): Note duration in seconds
-  - `velocity` (integer, optional): MIDI velocity (0-127, default: 80)
+  - `velocity` (integer): MIDI velocity (0-127)
   - `start_time` (float): Start time in seconds
 - `style` (string, optional): Music style ("pop", "rock", "jazz", "classical", default: "pop")
 - `tempo` (integer, optional): Tempo in BPM (default: 120)
@@ -107,30 +107,44 @@ Generate complementary music parts from a melody.
 **Response:**
 ```json
 {
-  "status": "success",
+  "success": true,
+  "harmony": [
+    {
+      "root": 60,
+      "chord_type": "major",
+      "duration": 1.0,
+      "start_time": 0.0,
+      "voicing": [60, 64, 67]
+    }
+  ],
+  "bass_line": [
+    {
+      "pitch": 48,
+      "velocity": 64,
+      "duration": 1.0,
+      "start_time": 0.0,
+      "channel": 0
+    }
+  ],
+  "drums": [
+    {
+      "pitch": 36,
+      "velocity": 80,
+      "duration": 0.25,
+      "start_time": 0.0,
+      "channel": 9
+    }
+  ],
   "midi_data": "base64_encoded_midi_data",
   "duration": 4.0,
-  "tracks": {
-    "melody": 1,
-    "harmony": 2,
-    "bass": 3,
-    "drums": 10
-  },
-  "metadata": {
-    "style": "pop",
-    "tempo": 120,
-    "key": "C",
-    "generated_at": "2024-01-01T00:00:00Z"
-  }
+  "error_message": null
 }
 ```
 
 **Error Response:**
 ```json
 {
-  "status": "error",
-  "message": "Invalid melody format",
-  "details": "Melody must contain at least one note"
+  "detail": "Melody cannot be empty. Please provide at least one note."
 }
 ```
 
@@ -145,106 +159,239 @@ List available plugins.
 {
   "plugins": [
     {
-      "id": "plugin_001",
       "name": "Piano Plugin",
-      "type": "instrument",
-      "category": "piano",
       "version": "1.0.0",
-      "path": "/plugins/piano.vst3"
+      "manufacturer": "Unknown",
+      "plugin_type": "VST3",
+      "category": "Synth",
+      "file_path": "/plugins/piano.vst3",
+      "is_loaded": false
     }
-  ]
+  ],
+  "count": 1
 }
 ```
 
-#### GET /plugins/{plugin_id}
+#### GET /plugins/{plugin_name}
 
 Get detailed information about a specific plugin.
 
 **Response:**
 ```json
 {
-  "id": "plugin_001",
   "name": "Piano Plugin",
-  "type": "instrument",
-  "category": "piano",
   "version": "1.0.0",
-  "path": "/plugins/piano.vst3",
-  "parameters": [
-    {
-      "name": "reverb",
-      "type": "float",
-      "min": 0.0,
-      "max": 1.0,
-      "default": 0.3
-    }
-  ],
-  "presets": [
-    {
-      "name": "Concert Hall",
-      "parameters": {
-        "reverb": 0.8,
-        "brightness": 0.6
-      }
-    }
-  ]
+  "manufacturer": "Unknown",
+  "plugin_type": "VST3",
+  "category": "Synth",
+  "file_path": "/plugins/piano.vst3",
+  "is_loaded": false,
+  "description": "",
+  "parameters": ["Volume", "Cutoff"],
+  "presets": ["Default", "Bright"]
 }
 ```
 
-#### POST /plugins/scan
+#### GET /plugins/{plugin_name}/parameters
 
-Scan for new plugins in specified directories.
-
-**Request Body:**
-```json
-{
-  "directories": [
-    "/Library/Audio/Plug-Ins/VST3",
-    "/Library/Audio/Plug-Ins/Components"
-  ]
-}
-```
+Get plugin parameters.
 
 **Response:**
 ```json
 {
-  "status": "success",
-  "scanned_plugins": 15,
-  "new_plugins": 3,
-  "errors": []
+  "plugin_name": "Piano Plugin",
+  "parameters": [
+    {
+      "name": "Volume",
+      "value": 0.5,
+      "min_value": 0.0,
+      "max_value": 1.0,
+      "default_value": 0.5,
+      "unit": "dB",
+      "is_automated": false
+    }
+  ]
+}
+```
+
+#### POST /plugins/{plugin_name}/parameters/{parameter_name}
+
+Set a plugin parameter (query parameter `value`).
+
+**Example:**
+`POST /api/v1/plugins/Piano%20Plugin/parameters/Volume?value=0.7`
+
+**Response:**
+```json
+{
+  "message": "Parameter Volume set to 0.7 for plugin Piano Plugin"
+}
+```
+
+#### GET /plugins/{plugin_name}/presets
+
+Get plugin presets.
+
+**Response:**
+```json
+{
+  "plugin_name": "Piano Plugin",
+  "presets": [
+    {
+      "name": "Default",
+      "parameters": {
+        "Volume": 0.5,
+        "Cutoff": 0.7
+      },
+      "category": "Default"
+    }
+  ]
+}
+```
+
+#### POST /plugins/{plugin_name}/load
+
+Load a plugin into memory.
+
+**Response:**
+```json
+{
+  "message": "Plugin Piano Plugin loaded successfully"
 }
 ```
 
 ### Plugin Recommendations
 
-#### POST /plugins/recommend
+#### GET /plugins/recommendations
 
-Get plugin recommendations based on music style and requirements.
+Get plugin recommendations using query parameters `style` and `instrument`.
 
-**Request Body:**
+**Example:**
+`GET /api/v1/plugins/recommendations?style=electronic&instrument=lead`
+
+**Response:**
 ```json
 {
   "style": "electronic",
   "instrument": "lead",
-  "mood": "energetic",
-  "tempo": 140
+  "recommendations": [
+    {
+      "name": "Synth Plugin",
+      "manufacturer": "Unknown",
+      "plugin_type": "VST3",
+      "category": "Synth",
+      "file_path": "/plugins/synth.vst3"
+    }
+  ]
+}
+```
+
+### AI Model Management
+
+#### POST /ai/models/register
+
+Register a new AI model.
+
+**Request Body:**
+```json
+{
+  "name": "default-hf",
+  "type": "huggingface",
+  "model_path": "microsoft/DialoGPT-medium"
 }
 ```
 
 **Response:**
 ```json
 {
-  "recommendations": [
+  "message": "AI model default-hf registered successfully",
+  "model_name": "default-hf",
+  "model_type": "huggingface"
+}
+```
+
+#### POST /ai/models/{model_name}/set-default
+
+Set the default AI model.
+
+**Response:**
+```json
+{
+  "message": "Default AI model set to default-hf",
+  "default_model": "default-hf"
+}
+```
+
+#### GET /ai/models
+
+List registered AI models.
+
+**Response:**
+```json
+{
+  "models": ["default-hf"],
+  "count": 1,
+  "ai_models_enabled": true
+}
+```
+
+#### POST /ai/generate/harmony
+
+Generate harmony using AI models (optional query parameter `model_name`).
+
+**Response:**
+```json
+{
+  "harmony": [
     {
-      "plugin_id": "plugin_002",
-      "name": "Synth Plugin",
-      "score": 0.95,
-      "reason": "Perfect for electronic lead sounds",
-      "parameters": {
-        "oscillator": "saw",
-        "filter_cutoff": 0.7
-      }
+      "root": 60,
+      "chord_type": "major",
+      "duration": 1.0,
+      "start_time": 0.0,
+      "voicing": [60, 64, 67]
     }
-  ]
+  ],
+  "success": true
+}
+```
+
+#### POST /ai/generate/bass
+
+Generate bass using AI models (optional query parameter `model_name`).
+
+**Response:**
+```json
+{
+  "bass_line": [
+    {
+      "pitch": 48,
+      "velocity": 64,
+      "duration": 1.0,
+      "start_time": 0.0,
+      "channel": 0
+    }
+  ],
+  "success": true
+}
+```
+
+#### POST /ai/generate/drums
+
+Generate drums using AI models (optional query parameter `model_name`).
+
+**Response:**
+```json
+{
+  "drums": [
+    {
+      "pitch": 36,
+      "velocity": 80,
+      "duration": 0.25,
+      "start_time": 0.0,
+      "channel": 9
+    }
+  ],
+  "success": true
 }
 ```
 
@@ -257,10 +404,8 @@ All endpoints return appropriate HTTP status codes:
 - `404 Not Found`: Resource not found
 - `500 Internal Server Error`: Server error
 
-Error responses include a JSON object with:
-- `status`: "error"
-- `message`: Human-readable error message
-- `details`: Additional error details (optional)
+Error responses follow FastAPI defaults and include a JSON object with:
+- `detail`: Human-readable error message
 
 ## Rate Limiting
 
@@ -275,13 +420,13 @@ CORS is enabled for development. Production configuration will be more restricti
 ### Generate Music with cURL
 
 ```bash
-curl -X POST http://localhost:8000/generate \
+curl -X POST http://localhost:8000/api/v1/generate \
   -H "Content-Type: application/json" \
   -d '{
     "melody": [
-      {"note": "C4", "duration": 1.0, "velocity": 80, "start_time": 0.0},
-      {"note": "E4", "duration": 1.0, "velocity": 80, "start_time": 1.0},
-      {"note": "G4", "duration": 1.0, "velocity": 80, "start_time": 2.0}
+      {"pitch": 60, "duration": 1.0, "velocity": 80, "start_time": 0.0},
+      {"pitch": 64, "duration": 1.0, "velocity": 80, "start_time": 1.0},
+      {"pitch": 67, "duration": 1.0, "velocity": 80, "start_time": 2.0}
     ],
     "style": "pop",
     "tempo": 120
@@ -295,10 +440,10 @@ import requests
 import base64
 
 # Generate music
-response = requests.post('http://localhost:8000/generate', json={
+response = requests.post('http://localhost:8000/api/v1/generate', json={
     'melody': [
-        {'note': 'C4', 'duration': 1.0, 'velocity': 80, 'start_time': 0.0},
-        {'note': 'E4', 'duration': 1.0, 'velocity': 80, 'start_time': 1.0}
+        {'pitch': 60, 'duration': 1.0, 'velocity': 80, 'start_time': 0.0},
+        {'pitch': 64, 'duration': 1.0, 'velocity': 80, 'start_time': 1.0}
     ],
     'style': 'pop',
     'tempo': 120

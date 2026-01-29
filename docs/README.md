@@ -4,29 +4,30 @@
 
 ## 📚 ドキュメント一覧
 
-### 開発者向け
+### プロダクト / 機能
 - **[API.md](API.md)** - API仕様書
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - システムアーキテクチャ設計書
-- **[CHANGELOG.md](CHANGELOG.md)** - 変更履歴
+- **[AI_MODEL_MANAGEMENT.md](AI_MODEL_MANAGEMENT.md)** - AIモデル管理設計
 
-### 運用・デプロイメント
-- **[OPERATIONS_GUIDE.md](OPERATIONS_GUIDE.md)** - 運用ガイド（可用性レベル別）
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - デプロイメントガイド
+### 開発
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - 開発・貢献ガイド
+- **[BRANCH_STRATEGY.md](BRANCH_STRATEGY.md)** - ブランチ運用
 
 ### セキュリティ・トラブルシューティング
 - **[SECURITY.md](SECURITY.md)** - セキュリティポリシー
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - トラブルシューティングガイド
+- **[SLACK_SETUP.md](SLACK_SETUP.md)** - CI通知のSlack設定（任意）
 
 ## 📖 ドキュメントの読み方
 
 ### 初めての方
-1. [ARCHITECTURE.md](ARCHITECTURE.md) - システム全体の設計を理解
-2. [API.md](API.md) - APIの使用方法を確認
-3. [DEPLOYMENT.md](DEPLOYMENT.md) - デプロイメント手順を確認
+1. [API.md](API.md) - APIの使用方法を確認
+2. [AI_MODEL_MANAGEMENT.md](AI_MODEL_MANAGEMENT.md) - AIモデル管理の方針を確認
+3. [CONTRIBUTING.md](CONTRIBUTING.md) - 開発の進め方を確認
 
-### 運用担当者
-1. [OPERATIONS_GUIDE.md](OPERATIONS_GUIDE.md) - 可用性要件に応じた運用設計
-2. [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - 問題解決の手順
+### 運用・サポート担当者
+1. [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - 問題解決の手順
+2. [SECURITY.md](SECURITY.md) - セキュリティポリシー
+3. [SLACK_SETUP.md](SLACK_SETUP.md) - CI通知の設定（必要な場合）
 
 ### セキュリティ担当者
 1. [SECURITY.md](SECURITY.md) - セキュリティポリシーとベストプラクティス
@@ -36,7 +37,6 @@
 ドキュメントの更新時は以下を確認してください：
 
 - 技術的な変更に合わせてドキュメントを更新
-- 変更履歴を[CHANGELOG.md](CHANGELOG.md)に記録
 - 関連するドキュメント間の整合性を確認
 
 ## 📝 注意事項
@@ -47,4 +47,4 @@
 
 ---
 
-*最終更新: 2024年12月* 
+*最終更新: 2026年1月*
