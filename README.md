@@ -131,6 +131,37 @@ curl -X POST http://localhost:8000/api/v1/generate \
   }'
 ```
 
+## 🎵 Practical Usage / 実践的な使い方
+
+### Quick Demo / クイックデモ
+
+```bash
+# Run interactive composition demo / インタラクティブなデモを実行
+python3 examples/composition_assistant_demo.py
+```
+
+生成されたMIDIファイルは `examples/output/` に保存されます。
+
+### MCP Server for Cursor/Claude Desktop
+
+Cursorから直接Merlaiを使用できます：
+
+1. `mcp_config.json` を設定
+2. Cursorで「C-D-E-Fのメロディからポップスの曲を作って」と依頼
+3. 自動的にMIDI生成、Logic Pro送信も可能
+
+詳細: [examples/mcp_usage_example.md](examples/mcp_usage_example.md)
+
+### For Logic Pro Users
+
+```python
+# Generate and export to Logic Pro
+python3 examples/composition_assistant_demo.py
+# → examples/output/for_logic_pro.mid をLogic Proでインポート
+```
+
+詳細な使い方: [examples/PRACTICAL_USAGE.md](examples/PRACTICAL_USAGE.md)
+
 ## 📚 Documentation
 
 詳細なドキュメントは [`docs/`](docs/) フォルダにあります：
