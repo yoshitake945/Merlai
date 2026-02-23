@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "merlai": {
+      "command": "python3",
+      "args": ["-m", "mcp.server"],
+      "cwd": "/workspace",
+      "env": {
+        "PYTHONPATH": "/workspace"
+      }
+    }
+  }
+}
