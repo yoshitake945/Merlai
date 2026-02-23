@@ -23,8 +23,9 @@ from mcp.types import (
     EmbeddedResource,
 )
 
-# Merlaiのコア機能をインポート
+# Import Merlai core functionality
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from merlai.core.music import MusicGenerator
@@ -33,43 +34,43 @@ from merlai.core.types import Note, Melody, Chord, Harmony
 
 logger = logging.getLogger(__name__)
 
-# グローバルな状態管理
+# Global state management
 current_midi_data: Optional[bytes] = None
 current_melody: Optional[Melody] = None
 music_generator = MusicGenerator(use_ai_models=False)
 midi_generator = MIDIGenerator()
 
 
-# MCPサーバーのインスタンス作成
+# Create MCP server instance
 mcp_server = Server("merlai-composition-assistant")
 
 
 @mcp_server.list_resources()
 async def list_resources() -> list[Resource]:
     """
-    利用可能なリソースのリストを返す。
+    List available resources.
     
     Returns:
-        - midi://current - 現在のMIDIファイル
-        - composition://suggestions - 作曲支援の提案
+        - midi://current - Current MIDI file
+        - composition://suggestions - Composition suggestions
     """
     resources = [
         Resource(
             uri="midi://current",
             name="Current MIDI File",
-            description="現在作業中のMIDIファイルの情報",
+            description="Information about the current MIDI file being worked on",
             mimeType="application/json",
         ),
         Resource(
             uri="composition://suggestions",
             name="Composition Suggestions",
-            description="現在のメロディに基づいた作曲支援の提案",
+            description="Composition assistance suggestions based on current melody",
             mimeType="application/json",
         ),
         Resource(
             uri="composition://chord-progressions",
             name="Chord Progressions",
-            description="人気のあるコード進行のライブラリ",
+            description="Library of popular chord progressions",
             mimeType="application/json",
         ),
     ]
@@ -80,19 +81,19 @@ async def list_resources() -> list[Resource]:
 @mcp_server.read_resource()
 async def read_resource(uri: str) -> str:
     """
-    リソースの内容を読み込む。
+    Read resource content.
     
     Args:
-        uri: リソースのURI
+        uri: Resource URI
         
     Returns:
-        リソースの内容（JSON文字列）
+        Resource content (JSON string)
     """
     if uri == "midi://current":
         if current_midi_data is None:
             return json.dumps({
                 "status": "no_file",
-                "message": "MIDIファイルが読み込まれていません",
+                "message": "No MIDI file loaded",
                 "data": None
             })
         
@@ -107,11 +108,11 @@ async def read_resource(uri: str) -> str:
         if current_melody is None:
             return json.dumps({
                 "status": "no_melody",
-                "message": "メロディが設定されていません",
+                "message": "No melody set",
                 "suggestions": []
             })
         
-        # コード進行を提案
+        # Suggest chord progression
         harmony = music_generator.generate_harmony(current_melody, style="pop")
         
         suggestions = {
@@ -132,20 +133,20 @@ async def read_resource(uri: str) -> str:
         return json.dumps(suggestions)
     
     elif uri == "composition://chord-progressions":
-        # 人気のコード進行ライブラリ
+        # Popular chord progression library
         progressions = {
             "pop": [
-                {"name": "I-V-vi-IV", "chords": ["C", "G", "Am", "F"], "description": "最も人気のあるポップス進行"},
-                {"name": "I-vi-IV-V", "chords": ["C", "Am", "F", "G"], "description": "50年代ドゥーワップ"},
-                {"name": "vi-IV-I-V", "chords": ["Am", "F", "C", "G"], "description": "感情的なポップス"},
+                {"name": "I-V-vi-IV", "chords": ["C", "G", "Am", "F"], "description": "Most popular pop progression"},
+                {"name": "I-vi-IV-V", "chords": ["C", "Am", "F", "G"], "description": "50s doo-wop"},
+                {"name": "vi-IV-I-V", "chords": ["Am", "F", "C", "G"], "description": "Emotional pop"},
             ],
             "jazz": [
-                {"name": "ii-V-I", "chords": ["Dm7", "G7", "Cmaj7"], "description": "ジャズの基本"},
-                {"name": "I-VI-ii-V", "chords": ["Cmaj7", "A7", "Dm7", "G7"], "description": "ジャズスタンダード"},
+                {"name": "ii-V-I", "chords": ["Dm7", "G7", "Cmaj7"], "description": "Jazz basics"},
+                {"name": "I-VI-ii-V", "chords": ["Cmaj7", "A7", "Dm7", "G7"], "description": "Jazz standard"},
             ],
             "rock": [
-                {"name": "I-IV-V", "chords": ["C", "F", "G"], "description": "ロックの基本"},
-                {"name": "I-bVII-IV", "chords": ["C", "Bb", "F"], "description": "モダンロック"},
+                {"name": "I-IV-V", "chords": ["C", "F", "G"], "description": "Rock basics"},
+                {"name": "I-bVII-IV", "chords": ["C", "Bb", "F"], "description": "Modern rock"},
             ],
         }
         
@@ -157,18 +158,18 @@ async def read_resource(uri: str) -> str:
 @mcp_server.list_tools()
 async def list_tools() -> list[Tool]:
     """
-    利用可能なツールのリストを返す。
+    List available tools.
     """
     tools = [
         Tool(
             name="read_midi_file",
-            description="MIDIファイルを読み込んで解析します",
+            description="Read and parse a MIDI file",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "file_path": {
                         "type": "string",
-                        "description": "読み込むMIDIファイルのパス",
+                        "description": "Path to the MIDI file to read",
                     }
                 },
                 "required": ["file_path"],
@@ -176,17 +177,17 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="write_midi_file",
-            description="MIDIファイルを生成して保存します",
+            description="Generate and save a MIDI file",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "file_path": {
                         "type": "string",
-                        "description": "保存先のMIDIファイルパス",
+                        "description": "Destination path for the MIDI file",
                     },
                     "melody": {
                         "type": "array",
-                        "description": "メロディノートの配列",
+                        "description": "Array of melody notes",
                         "items": {
                             "type": "object",
                             "properties": {
@@ -203,22 +204,22 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="suggest_chord_progression",
-            description="現在のメロディに合うコード進行を提案します",
+            description="Suggest chord progression matching the current melody",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "melody": {
                         "type": "array",
-                        "description": "メロディノートの配列",
+                        "description": "Melody notesの配列",
                     },
                     "style": {
                         "type": "string",
-                        "description": "音楽スタイル（pop, rock, jazz, classical, electronic）",
+                        "description": "Music style (pop, rock, jazz, classical, electronic)",
                         "enum": ["pop", "rock", "jazz", "classical", "electronic"],
                     },
                     "key": {
                         "type": "string",
-                        "description": "キー（C, D, E, F, G, A, B）",
+                        "description": "Key (C, D, E, F, G, A, B)",
                     },
                 },
                 "required": ["melody", "style"],
@@ -226,21 +227,21 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="complete_melody",
-            description="部分的なメロディを補完します",
+            description="Complete a partial melody",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "partial_melody": {
                         "type": "array",
-                        "description": "部分的なメロディノート",
+                        "description": "Partial melody notes",
                     },
                     "target_length": {
                         "type": "number",
-                        "description": "目標の長さ（秒）",
+                        "description": "Target length (seconds)",
                     },
                     "style": {
                         "type": "string",
-                        "description": "音楽スタイル",
+                        "description": "Music style",
                     },
                 },
                 "required": ["partial_melody"],
@@ -248,25 +249,25 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="generate_full_arrangement",
-            description="メロディから完全なアレンジ（ハーモニー、ベース、ドラム）を生成します",
+            description="Generate full arrangement (harmony, bass, drums) from melody",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "melody": {
                         "type": "array",
-                        "description": "メロディノート",
+                        "description": "Melody notes",
                     },
                     "style": {
                         "type": "string",
-                        "description": "音楽スタイル",
+                        "description": "Music style",
                     },
                     "tempo": {
                         "type": "integer",
-                        "description": "テンポ（BPM）",
+                        "description": "Tempo (BPM)",
                     },
                     "key": {
                         "type": "string",
-                        "description": "キー",
+                        "description": "Key",
                     },
                 },
                 "required": ["melody", "style", "tempo", "key"],
@@ -274,13 +275,13 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="analyze_midi",
-            description="MIDIファイルを分析して、キー、コード進行、テンポなどを検出します",
+            description="MIDIファイルを分析して、Key、コード進行、テンポなどを検出します",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "file_path": {
                         "type": "string",
-                        "description": "分析するMIDIファイルのパス",
+                        "description": "Path to MIDI file to analyze",
                     }
                 },
                 "required": ["file_path"],
@@ -288,17 +289,17 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="send_to_logic_pro",
-            description="生成したMIDIをLogic Proに送信します（AppleScript経由）",
+            description="Send generated MIDI to Logic Pro (via AppleScript)",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "midi_file_path": {
                         "type": "string",
-                        "description": "Logic Proに送信するMIDIファイルのパス",
+                        "description": "Path to MIDI file to send to Logic Pro",
                     },
                     "track_name": {
                         "type": "string",
-                        "description": "トラック名（オプション）",
+                        "description": "Track name (optional)",
                     },
                 },
                 "required": ["midi_file_path"],
@@ -312,7 +313,7 @@ async def list_tools() -> list[Tool]:
 @mcp_server.call_tool()
 async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
     """
-    ツールを実行する。
+    Execute tool.
     """
     global current_midi_data, current_melody
     
@@ -325,7 +326,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 return [TextContent(
                     type="text",
                     text=json.dumps({
-                        "error": f"ファイルが見つかりません: {file_path}",
+                        "error": f"File not found: {file_path}",
                         "success": False
                     })
                 )]
@@ -333,12 +334,12 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
             with open(file_path, "rb") as f:
                 current_midi_data = f.read()
             
-            # 簡易的なMIDI情報の抽出
+            # Extract basic MIDI information
             result = {
                 "success": True,
                 "file_path": file_path,
                 "size": len(current_midi_data),
-                "message": f"MIDIファイルを読み込みました: {file_path}",
+                "message": f"MIDI file loaded: {file_path}",
             }
             
             return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
@@ -347,7 +348,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
             file_path = arguments["file_path"]
             melody_data = arguments["melody"]
             
-            # メロディノートを作成
+            # Melody notesを作成
             notes = [
                 Note(
                     pitch=note["pitch"],
@@ -373,7 +374,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 "file_path": file_path,
                 "notes_count": len(notes),
                 "size": len(midi_data),
-                "message": f"MIDIファイルを保存しました: {file_path}",
+                "message": f"MIDI file saved: {file_path}",
             }
             
             return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
@@ -418,7 +419,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 "key": key,
                 "chord_progression": chord_progression,
                 "suggestion_count": len(chord_progression),
-                "message": f"{len(chord_progression)}個のコードを提案しました",
+                "message": f"{len(chord_progression)} chord suggestions generated",
             }
             
             return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
@@ -441,14 +442,14 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
             
             melody = Melody(notes=notes, tempo=120, key="C")
             
-            # 現在のメロディの長さ
+            # Current melody length
             current_length = max(n.start_time + n.duration for n in notes)
             
-            # 補完が必要な長さ
+            # Length needed for completion
             remaining_length = target_length - current_length
             
             if remaining_length > 0:
-                # 簡易的な補完: 最後のノートパターンを繰り返す
+                # Simple completion: repeat the last note pattern
                 last_notes = notes[-min(4, len(notes)):]
                 pattern_length = max(n.start_time + n.duration for n in last_notes) - min(n.start_time for n in last_notes)
                 
@@ -484,7 +485,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                     }
                     for n in notes + new_notes
                 ],
-                "message": f"{len(new_notes)}個のノートを追加してメロディを補完しました",
+                "message": f"{len(new_notes)} notes added to complete melody",
             }
             
             return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
@@ -545,7 +546,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 "style": style,
                 "tempo": tempo,
                 "key": key,
-                "message": f"完全なアレンジを生成しました（ハーモニー: {len(harmony.chords)}コード、ベース: {len(bass.notes)}ノート、ドラム: {len(drums.notes)}ノート）",
+                "message": f"Full arrangement generated (Harmony: {len(harmony.chords)} chords, Bass: {len(bass.notes)} notes, Drums: {len(drums.notes)} notes)",
             }
             
             return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
@@ -557,7 +558,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 return [TextContent(
                     type="text",
                     text=json.dumps({
-                        "error": f"ファイルが見つかりません: {file_path}",
+                        "error": f"File not found: {file_path}",
                         "success": False
                     })
                 )]
@@ -566,7 +567,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
             with open(file_path, "rb") as f:
                 midi_data = f.read()
             
-            # 簡易的な分析結果
+            # Basic analysis results
             result = {
                 "success": True,
                 "file_path": file_path,
@@ -575,9 +576,9 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                     "estimated_key": "C",
                     "estimated_tempo": 120,
                     "estimated_style": "pop",
-                    "note": "詳細な分析機能は今後実装予定",
+                    "note": "Detailed analysis features coming soon",
                 },
-                "message": "MIDIファイルを分析しました",
+                "message": "MIDI file analyzed",
             }
             
             return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
@@ -590,7 +591,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 return [TextContent(
                     type="text",
                     text=json.dumps({
-                        "error": f"MIDIファイルが見つかりません: {midi_file_path}",
+                        "error": f"MIDIFile not found: {midi_file_path}",
                         "success": False
                     })
                 )]
@@ -600,8 +601,8 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
             applescript = f'''
 tell application "Logic Pro"
     activate
-    -- MIDIファイルをインポート
-    -- 注: 実際の実装では、より詳細な制御が必要
+    -- Import MIDI file
+    -- Note: Actual implementation requires more detailed control
     set trackName to "{track_name}"
     set midiFile to "{midi_file_path}"
 end tell
@@ -612,8 +613,8 @@ end tell
                 "midi_file": midi_file_path,
                 "track_name": track_name,
                 "platform": "macOS required",
-                "message": f"Logic Proへの送信準備完了: {track_name}",
-                "note": "実際の送信にはmacOS環境とLogic Proが必要です",
+                "message": f"Ready to send to Logic Pro: {track_name}",
+                "note": "Actual sending requires macOS and Logic Pro",
                 "applescript": applescript,
             }
             
@@ -641,7 +642,7 @@ end tell
 
 
 async def main():
-    """MCPサーバーを起動する。"""
+    """Start MCP server."""
     logger.info("Starting Merlai MCP Server...")
     
     async with stdio_server() as (read_stream, write_stream):

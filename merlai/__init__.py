@@ -18,6 +18,7 @@ from .core.types import Bass, Chord, Drums, Harmony, Melody, Note, Song, Track
 app = None
 try:
     from .api.main import app as _app
+
     app = _app
 except ImportError:
     # FastAPI not installed, app will be None
