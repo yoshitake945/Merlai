@@ -94,9 +94,20 @@ int main() {
                             reinterpret_cast<AudioBufferList *>(&out)));
   };
   set(Arm, 1u);
+  CaptureInfo capture{};
+  size = sizeof(capture);
+  assert(!AudioUnitGetProperty(au, CaptureProgress, 0, 0, &capture, &size));
+  assert(capture.state == Armed && capture.count == 0);
   block(0);
+  size = sizeof(capture);
+  assert(!AudioUnitGetProperty(au, CaptureProgress, 0, 0, &capture, &size));
+  assert(capture.state == Capturing && capture.start == 0 &&
+         capture.end == 2 && capture.count == 4);
   block(1, 3.0 / 256); // Host beat and nominal render end can differ by a few frames.
   block(0);
+  size = sizeof(capture);
+  assert(!AudioUnitGetProperty(au, CaptureProgress, 0, 0, &capture, &size));
+  assert(capture.state == Ready && capture.count == 8);
   Phrase p{};
   size = sizeof(p);
   assert(!AudioUnitGetProperty(au, ReadPhrase, 0, 0, &p, &size));

@@ -21,8 +21,9 @@ class MerlaiFX : public ausdk::AUBase {
   // The UI reads a finished capture only, and publishes one pending edit at a
   // time.
   Phrase captured, mailbox, active;
-  enum { Idle, Armed, Capturing, Ready, Failed };
   std::atomic<int> state{Idle};
+  std::atomic<uint32_t> captureCount{0};
+  std::atomic<double> captureStart{0}, captureEnd{0}, capturePosition{0};
   std::atomic<bool> pending{false}, wantEdit{false}, bypass{false};
   bool sounding[16][128]{};
   std::atomic<bool> resetRequested{false};
@@ -63,6 +64,7 @@ class MerlaiFX : public ausdk::AUBase {
       }
       captured.notes[captured.count++] = {t, -1, m.a, m.b,
                                           UInt8(m.status & 15)};
+      captureCount.store(captured.count, std::memory_order_relaxed);
     } else if ((m.status & 0xf0) == 0x80 || (m.status & 0xf0) == 0x90) {
       for (unsigned i = captured.count; i > 0; --i) {
         auto &n = captured.notes[i - 1];
@@ -87,6 +89,10 @@ class MerlaiFX : public ausdk::AUBase {
       captured.count = 0;
       captured.start = left;
       captured.end = right;
+      captureStart.store(left, std::memory_order_relaxed);
+      captureEnd.store(right, std::memory_order_relaxed);
+      capturePosition.store(left, std::memory_order_relaxed);
+      captureCount.store(0, std::memory_order_relaxed);
       state = Capturing;
     }
     if (pending.load()) {
@@ -141,6 +147,9 @@ public:
     double step = tempo / (60. * Output(0).GetStreamFormat().mSampleRate);
     bool loop =
         clock && playing && cycling && right - left > step * 2 && step > 0;
+    if (loop && state == Capturing)
+      capturePosition.store(std::clamp(beat, left, right),
+                            std::memory_order_relaxed);
     if (resetRequested.exchange(false) || overflow ||
         (wasPlaying && (!playing || !loop || bypass ||
                         std::abs(previousEnd - beat) > std::max(2u, frames) * step))) {
@@ -227,6 +236,9 @@ public:
     case Status:
       size = sizeof(UInt32);
       return noErr;
+    case CaptureProgress:
+      size = sizeof(CaptureInfo);
+      return noErr;
     case Submit:
       size = sizeof(Phrase);
       writable = true;
@@ -269,6 +281,15 @@ public:
     case Status:
       *(UInt32 *)out = state.load();
       return noErr;
+    case CaptureProgress: {
+      auto *info = static_cast<CaptureInfo *>(out);
+      info->state = state.load();
+      info->count = captureCount.load(std::memory_order_relaxed);
+      info->start = captureStart.load(std::memory_order_relaxed);
+      info->end = captureEnd.load(std::memory_order_relaxed);
+      info->position = capturePosition.load(std::memory_order_relaxed);
+      return noErr;
+    }
     case ReadPhrase:
       if (state != Ready)
         return kAudioUnitErr_CannotDoInCurrentContext;
@@ -329,6 +350,10 @@ public:
       bool enabled = *(const UInt32 *)data != 0;
       if (id == Arm) {
         wantEdit = false;
+        captureCount.store(0, std::memory_order_relaxed);
+        captureStart.store(0, std::memory_order_relaxed);
+        captureEnd.store(0, std::memory_order_relaxed);
+        capturePosition.store(0, std::memory_order_relaxed);
         state = Armed;
         return noErr;
       }
