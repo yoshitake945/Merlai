@@ -1,63 +1,10 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyc
-*.egg-info/
-dist/
-build/
-.venv/
-venv/
-.env*
-
-# Type checking
-.mypy_cache/
-.ruff_cache/
-
-# OS
 .DS_Store
-Thumbs.db
-
-# Editor
-.vscode/
-.idea/
-*.code-workspace
 *.swp
-*.swo
-*~
-
-# Logs
-*.log
-
-# MIDI / Audio outputs
-*.mid
-*.midi
-*.wav
-samples/
-output/
-
-# Docker
-*.pid
-*.sock
-docker-compose.override.yml
-
-# Testing and coverage
-.coverage
-coverage.xml
-htmlcov/
-.pytest_cache/
-.tox/
-
-# Node.js (if any frontend tools are used)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Documentation with future plans
-CHANGELOG.md
-ARCHITECTURE.md
-
 /target/
 /macos/.build/
 /dist/
+*.mid
+*.midi
+*.wav
+*.caf
 !/tests/native/*.mid
