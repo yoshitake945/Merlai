@@ -9,6 +9,70 @@ pub struct Note {
     pub channel: u8,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Onset {
+    pub frame: u32,
+    pub strength: f32,
+}
+
+/// Fixed-size streaming detector state. It is initialized off the audio thread
+/// and performs no allocation, locking or I/O while processing a block.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct AudioAnalyzerState {
+    envelope: f32,
+    baseline: f32,
+    previous: f32,
+    cooldown: u32,
+}
+
+impl Default for AudioAnalyzerState {
+    fn default() -> Self {
+        Self {
+            envelope: 0.,
+            baseline: 0.002,
+            previous: 0.,
+            cooldown: 0,
+        }
+    }
+}
+
+fn detect_onsets(
+    state: &mut AudioAnalyzerState,
+    samples: &[f32],
+    sample_rate: f64,
+    output: &mut [Onset],
+) -> usize {
+    if !sample_rate.is_finite() || sample_rate <= 0. || output.is_empty() {
+        return 0;
+    }
+    let refractory = (sample_rate * 0.045) as u32;
+    let mut count = 0;
+    for (frame, sample) in samples.iter().enumerate() {
+        let magnitude = sample.abs().min(4.);
+        state.envelope += 0.18 * (magnitude - state.envelope);
+        state.baseline += 0.0005 * (state.envelope - state.baseline);
+        if state.cooldown > 0 {
+            state.cooldown -= 1;
+        }
+        let threshold = (state.baseline * 3.5).max(0.025);
+        let rising = state.envelope > state.previous * 1.35;
+        if state.cooldown == 0 && state.envelope > threshold && rising {
+            if count < output.len() {
+                output[count] = Onset {
+                    frame: frame as u32,
+                    strength: (state.envelope / threshold).min(4.) / 4.,
+                };
+                count += 1;
+            }
+            state.cooldown = refractory;
+        }
+        state.previous = state.envelope;
+    }
+    count
+}
+
 fn edit(input: &[Note], span: f64, text: &str) -> Result<Vec<Note>, ()> {
     let normalized = text.replace([' ', '　', '。', '、', '！', '!', '，', ','], "");
     let mut rest = normalized.as_str();
@@ -203,6 +267,36 @@ pub unsafe extern "C" fn merlai_generate(
         _ => -1,
     }
 }
+
+/// Detects percussive onsets in one mono audio block without allocation.
+/// Returns the number of initialized output events.
+/// # Safety
+/// The caller supplies one valid state, `frames` readable samples, and
+/// `capacity` writable output events. State is owned by one audio thread.
+#[no_mangle]
+pub unsafe extern "C" fn merlai_detect_onsets(
+    state: *mut AudioAnalyzerState,
+    samples: *const f32,
+    frames: usize,
+    sample_rate: f64,
+    output: *mut Onset,
+    capacity: usize,
+) -> usize {
+    if state.is_null() || samples.is_null() || output.is_null() || capacity == 0 {
+        return 0;
+    }
+    detect_onsets(
+        &mut *state,
+        std::slice::from_raw_parts(samples, frames),
+        sample_rate,
+        std::slice::from_raw_parts_mut(output, capacity),
+    )
+}
+
+#[no_mangle]
+pub extern "C" fn merlai_analyzer_reset(state: &mut AudioAnalyzerState) {
+    *state = AudioAnalyzerState::default();
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,5 +342,24 @@ mod tests {
             .iter()
             .zip(notes.iter().step_by(2))
             .all(|(a, b)| a.pitch < b.pitch));
+    }
+
+    #[test]
+    fn detects_separated_drum_transients_across_blocks() {
+        let rate = 1_000.;
+        let mut state = AudioAnalyzerState::default();
+        let mut events = [Onset::default(); 8];
+        let mut first = vec![0.; 100];
+        first[10] = 1.;
+        first[11] = 0.6;
+        let count = detect_onsets(&mut state, &first, rate, &mut events);
+        assert_eq!(count, 1);
+        assert_eq!(events[0].frame, 10);
+        let mut second = vec![0.; 100];
+        second[70] = 0.8;
+        let count = detect_onsets(&mut state, &second, rate, &mut events);
+        assert_eq!(count, 1);
+        assert_eq!(events[0].frame, 70);
+        assert!(events[0].strength > 0.);
     }
 }

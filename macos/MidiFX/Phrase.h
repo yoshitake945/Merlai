@@ -22,6 +22,17 @@ extern "C" int32_t merlai_edit(const Note *, size_t, double, const char *,
                                Note *);
 extern "C" int32_t merlai_generate(const Note *, size_t, double, uint32_t,
                                    Note *);
+struct Onset {
+  uint32_t frame;
+  float strength;
+};
+struct AudioAnalyzerState {
+  float envelope, baseline, previous;
+  uint32_t cooldown;
+};
+extern "C" size_t merlai_detect_onsets(AudioAnalyzerState *, const float *,
+                                       size_t, double, Onset *, size_t);
+extern "C" void merlai_analyzer_reset(AudioAnalyzerState *);
 // Custom AU properties. The host marshals data between the Cocoa view and
 // component.
 enum : unsigned {
