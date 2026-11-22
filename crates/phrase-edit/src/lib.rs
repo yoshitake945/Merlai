@@ -169,10 +169,7 @@ fn generate(input: &[Note], span: f64, purpose: GenerationPurpose) -> Result<Vec
             });
             if analyzed_drums {
                 let has_kick = sorted.iter().any(|note| note.pitch == 36);
-                for note in sorted
-                    .iter()
-                    .filter(|note| !has_kick || note.pitch == 36)
-                {
+                for note in sorted.iter().filter(|note| !has_kick || note.pitch == 36) {
                     result.push(Note {
                         start: note.start,
                         end: (note.start + 0.2).min(span),
