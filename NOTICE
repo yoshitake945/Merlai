@@ -1,4 +1,4 @@
-Merlai - AI-powered music creation assistant
+Merlai - Local music creation assistant
 
 PRODUCT DESIGN & ARCHITECTURE:
 Copyright 2025 Yoshitake Asano
@@ -55,7 +55,7 @@ This product includes software developed by:
 - AI Coding Assistants (Implementation via Cursor + GPT-4)
 - AI Creative Assistants (Ideation via ChatGPT)
 
-This product includes third-party software and libraries:
+Third-party acknowledgments retained from the archived Python edition (python-legacy):
 
 FastAPI
 Copyright 2018 Sebastián Ramírez
@@ -140,7 +140,7 @@ project remains at the forefront of AI-assisted development practices.
 ---
 
 For additional information about this project, please visit:
-https://github.com/yoshitake/merlai
+https://github.com/yoshitake945/Merlai
 
 For questions, support, or contributions, please:
 - Create an issue on the GitHub repository
