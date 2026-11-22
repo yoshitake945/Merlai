@@ -58,22 +58,26 @@ fn detect_onsets(
     for (frame, sample) in samples.iter().enumerate() {
         let magnitude = sample.abs().min(4.);
         let high = (sample - state.previous_sample).abs().min(4.);
+        let prior_envelope = state.envelope;
+        let threshold = (state.baseline * 2.2).max(0.008);
+        // Compare the unsmoothed attack with the envelope from the preceding
+        // sample. Comparing two smoothed samples made the maximum rise about
+        // 1.22x, so the old 1.35x condition could only re-arm after near
+        // silence. Real drum loops (especially closed hats) never get that
+        // quiet between hits.
+        let impulsive = magnitude > prior_envelope * 1.65 + 0.003;
         state.envelope += 0.18 * (magnitude - state.envelope);
         state.high_envelope += 0.18 * (high - state.high_envelope);
-        state.baseline += 0.0005 * (state.envelope - state.baseline);
+        state.baseline += 0.0002 * (state.envelope - state.baseline);
         if state.cooldown > 0 {
             state.cooldown -= 1;
         }
-        let threshold = (state.baseline * 3.5).max(0.025);
-        let rising = state.envelope > state.previous * 1.35;
-        if state.cooldown == 0 && state.envelope > threshold && rising {
+        if state.cooldown == 0 && magnitude > threshold && impulsive {
             if count < output.len() {
                 output[count] = Onset {
                     frame: frame as u32,
-                    strength: (state.envelope / threshold).min(4.) / 4.,
-                    brightness: (state.high_envelope
-                        / (state.envelope + state.high_envelope + 1e-6))
-                        .clamp(0., 1.),
+                    strength: (magnitude / threshold).min(4.) / 4.,
+                    brightness: (high / (magnitude + high + 1e-6)).clamp(0., 1.),
                 };
                 count += 1;
             }
@@ -432,5 +436,27 @@ mod tests {
         let noisy_count = detect_onsets(&mut noisy_state, &noisy, 48_000., &mut noisy_events);
         assert!(low_count > 0 && noisy_count > 0);
         assert!(noisy_events[0].brightness > low_events[0].brightness);
+    }
+
+    #[test]
+    fn detects_drum_hits_over_a_continuous_hat_bed() {
+        let rate = 48_000.;
+        let mut samples = vec![0.; 24_000];
+        for (i, sample) in samples.iter_mut().enumerate() {
+            *sample = if i % 2 == 0 { 0.018 } else { -0.018 };
+        }
+        for &start in &[2_400usize, 9_600, 16_800] {
+            samples[start] += 0.9;
+            samples[start + 1] += 0.5;
+        }
+        let mut state = AudioAnalyzerState::default();
+        let mut events = [Onset::default(); 16];
+        let count = detect_onsets(&mut state, &samples, rate, &mut events);
+        // The hat bed itself starts with an onset at frame zero; all three
+        // stronger hits must still re-trigger while that bed is continuous.
+        assert_eq!(count, 4);
+        assert_eq!(events[1].frame, 2_400);
+        assert_eq!(events[2].frame, 9_600);
+        assert_eq!(events[3].frame, 16_800);
     }
 }
