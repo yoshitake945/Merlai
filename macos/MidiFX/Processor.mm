@@ -81,8 +81,8 @@ class MerlaiFX : public ausdk::AUBase {
   }
   void boundary(const AudioTimeStamp &time, UInt32 offset, double left,
                 double right) {
-    if (state == Capturing)
-      finish();
+    // A host can announce the same loop start in adjacent render calls.
+    // Complete at the right edge so a repeated start cannot publish an empty capture.
     if (state == Armed) {
       captured.count = 0;
       captured.start = left;
@@ -143,7 +143,11 @@ public:
         clock && playing && cycling && right - left > step * 2 && step > 0;
     if (resetRequested.exchange(false) || overflow ||
         (wasPlaying && (!playing || !loop || bypass ||
-                        std::abs(previousEnd - beat) > 2 * step))) {
+                        std::abs(previousEnd - beat) > std::max(2u, frames) * step))) {
+      if (loop && !overflow && state == Capturing &&
+          std::abs(previousEnd - right) <= frames * step &&
+          std::abs(beat - left) <= frames * step)
+        finish();
       silence(time, 0);
       editing = false;
       if (state == Capturing &&
@@ -188,6 +192,9 @@ public:
       segment(start, split, left);
     } else
       segment(0, split, beat);
+    if (loop && state == Capturing && beat < right &&
+        beat + frames * step >= right - 0.5 * step)
+      finish();
     if (split < frames)
       segment(split, frames, left);
     previousEnd = (split < frames ? left + (frames - split) * step

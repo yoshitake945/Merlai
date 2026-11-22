@@ -74,8 +74,8 @@ int main() {
     AudioBuffer buffers[2];
   } out{2, {{1, 1024, nullptr}, {1, 1024, nullptr}}};
   double sample = 0;
-  auto block = [&](int beat) {
-    h.beat = beat;
+  auto block = [&](int beat, double hostOffset = 0.) {
+    h.beat = beat + hostOffset;
     AudioTimeStamp t{};
     t.mSampleTime = sample;
     t.mFlags = kAudioTimeStampSampleTimeValid;
@@ -95,7 +95,7 @@ int main() {
   };
   set(Arm, 1u);
   block(0);
-  block(1);
+  block(1, 3.0 / 256); // Host beat and nominal render end can differ by a few frames.
   block(0);
   Phrase p{};
   size = sizeof(p);
