@@ -19,6 +19,8 @@ fn edit(input: &[Note], span: f64, text: &str) -> Result<Vec<Note>, ()> {
     let action = [
         "音数を半分にして",
         "音数を半分に",
+        "半分にして",
+        "半分に",
         "休符を増やして",
         "休符を増やす",
         "もう少し減らして",
@@ -104,6 +106,7 @@ mod tests {
         assert_eq!(&changed[..8], &notes[..8]);
         assert_eq!(changed.len(), 12);
         assert_eq!(changed.last(), notes.last());
+        assert_eq!(edit(&notes, 8., "後半だけ半分に").unwrap().len(), 12);
         assert!(edit(&changed, 8., "もう少し減らして").unwrap().len() < changed.len());
         assert!(edit(&notes, 8., "後半だけ音数を半分にして移調").is_err());
     }
