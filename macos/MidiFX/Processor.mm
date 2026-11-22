@@ -1,4 +1,5 @@
 #include "Phrase.h"
+#include "Link.h"
 #include <AudioUnitSDK/AUBase.h>
 #include <AudioUnitSDK/AUPlugInDispatch.h>
 #include <CoreMIDI/CoreMIDI.h>
@@ -24,6 +25,7 @@ class MerlaiFX : public ausdk::AUBase {
   std::atomic<int> state{Idle};
   std::atomic<uint32_t> captureCount{0};
   std::atomic<double> captureStart{0}, captureEnd{0}, capturePosition{0};
+  const uint64_t instanceId;
   std::atomic<bool> pending{false}, wantEdit{false}, bypass{false};
   bool sounding[16][128]{};
   std::atomic<bool> resetRequested{false};
@@ -109,7 +111,9 @@ class MerlaiFX : public ausdk::AUBase {
   }
 
 public:
-  explicit MerlaiFX(AudioComponentInstance instance) : Base(instance, 0, 1) {}
+  explicit MerlaiFX(AudioComponentInstance instance)
+      : Base(instance, 0, 1), instanceId(merlai_link_register()) {}
+  ~MerlaiFX() override { merlai_link_unregister(instanceId); }
   bool CanScheduleParameters() const noexcept AUSDK_RTSAFE override {
     return false;
   }
@@ -239,6 +243,9 @@ public:
     case CaptureProgress:
       size = sizeof(CaptureInfo);
       return noErr;
+    case InstanceID:
+      size = sizeof(uint64_t);
+      return noErr;
     case Submit:
       size = sizeof(Phrase);
       writable = true;
@@ -290,6 +297,9 @@ public:
       info->position = capturePosition.load(std::memory_order_relaxed);
       return noErr;
     }
+    case InstanceID:
+      *(uint64_t *)out = instanceId;
+      return noErr;
     case ReadPhrase:
       if (state != Ready)
         return kAudioUnitErr_CannotDoInCurrentContext;

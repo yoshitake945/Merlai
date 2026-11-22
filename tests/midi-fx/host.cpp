@@ -117,6 +117,11 @@ int main() {
                                "後半だけ音数を半分に。最後の音は残して",
                                proposal.notes.data());
   assert(proposal.count == 6);
+  Phrase generated = p;
+  generated.count = merlai_generate(p.notes.data(), p.count, 2, 0,
+                                    generated.notes.data());
+  assert(generated.count == 2);
+  assert(generated.notes[0].pitch >= 36 && generated.notes[0].pitch < 48);
   set(Submit, proposal);
   set(PlaybackMode, 1u);
   block(1);

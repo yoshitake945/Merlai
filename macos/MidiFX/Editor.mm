@@ -1,4 +1,5 @@
 #include "Phrase.h"
+#include "Link.h"
 #import <AudioUnit/AUCocoaUIView.h>
 #import <Cocoa/Cocoa.h>
 #include <algorithm>
@@ -93,10 +94,13 @@ static NSString *BeatLabel(double beat) {
   Phrase _original, _current, _draft;
   std::vector<Phrase> _undo;
   NSTextField *_instruction, *_message, *_captureSummary;
+  NSTextField *_sourceName;
+  NSPopUpButton *_sourcePopup, *_purposePopup;
   NSButton *_plan, *_apply, *_originalButton, *_revisedButton, *_undoButton;
   NSProgressIndicator *_progress;
   MerlaiPianoRoll *_roll;
   NSTimer *_timer;
+  uint64_t _instanceId, _sourcesSignature;
   bool _loaded;
 }
 - (instancetype)initWithUnit:(AudioUnit)unit;
@@ -118,44 +122,62 @@ static NSString *BeatLabel(double beat) {
   [self addSubview:l]; return l;
 }
 - (instancetype)initWithUnit:(AudioUnit)unit {
-  if ((self = [super initWithFrame:NSMakeRect(0, 0, 720, 470)])) {
+  if ((self = [super initWithFrame:NSMakeRect(0, 0, 720, 560)])) {
     self.wantsLayer = YES;
     self.layer.backgroundColor = [NSColor colorWithWhite:.13 alpha:1].CGColor;
     _unit = unit;
-    [self label:@"Merlai フレーズ編集" frame:NSMakeRect(16, 438, 220, 24) size:17 bold:YES];
-    [self label:@"1  サイクル指定" frame:NSMakeRect(240, 440, 105, 20) size:12 bold:YES];
-    [self label:@"2  取り込む" frame:NSMakeRect(350, 440, 90, 20) size:12 bold:YES];
-    [self label:@"3  指示を確認" frame:NSMakeRect(445, 440, 105, 20) size:12 bold:YES];
-    [self label:@"4  比較" frame:NSMakeRect(560, 440, 70, 20) size:12 bold:YES];
+    UInt32 idSize = sizeof(_instanceId);
+    AudioUnitGetProperty(_unit, InstanceID, 0, 0, &_instanceId, &idSize);
+    [self label:@"Merlai フレーズ生成" frame:NSMakeRect(16, 528, 220, 24) size:17 bold:YES];
+    [self label:@"1  入力を選ぶ" frame:NSMakeRect(240, 530, 100, 20) size:12 bold:YES];
+    [self label:@"2  取り込む" frame:NSMakeRect(345, 530, 90, 20) size:12 bold:YES];
+    [self label:@"3  候補を作る" frame:NSMakeRect(440, 530, 105, 20) size:12 bold:YES];
+    [self label:@"4  比較・録音" frame:NSMakeRect(550, 530, 110, 20) size:12 bold:YES];
     [self button:@"2  フレーズを取り込む" action:@selector(arm:)
-           frame:NSMakeRect(16, 393, 185, 32)];
+           frame:NSMakeRect(16, 483, 185, 32)];
     _captureSummary = [self label:@"未取り込み — Logicで先にサイクルを指定"
-                            frame:NSMakeRect(216, 400, 480, 20) size:12 bold:NO];
-    _progress = [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(216, 389, 480, 8)];
+                            frame:NSMakeRect(216, 490, 480, 20) size:12 bold:NO];
+    _progress = [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(216, 479, 480, 8)];
     _progress.minValue = 0; _progress.maxValue = 1; _progress.indeterminate = NO;
     [self addSubview:_progress];
-    _roll = [[MerlaiPianoRoll alloc] initWithFrame:NSMakeRect(16, 214, 680, 160)];
+    [self label:@"共有名" frame:NSMakeRect(16, 447, 48, 20) size:11 bold:YES];
+    _sourceName = [[NSTextField alloc] initWithFrame:NSMakeRect(64, 440, 112, 27)];
+    _sourceName.stringValue = [NSString stringWithFormat:@"Merlai %llu",
+      (unsigned long long)_instanceId];
+    _sourceName.target = self; _sourceName.action = @selector(renameSource:);
+    [self addSubview:_sourceName];
+    _sourcePopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(184, 440, 232, 27)];
+    [_sourcePopup addItemWithTitle:@"入力元: このトラック"];
+    [self addSubview:_sourcePopup];
+    [self button:@"入力を読み込む" action:@selector(loadSource:)
+           frame:NSMakeRect(424, 440, 120, 27)];
+    _purposePopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(552, 440, 144, 27)];
+    [_purposePopup addItemsWithTitles:@[@"生成: ベース", @"生成: コード", @"生成: 対旋律"]];
+    [self addSubview:_purposePopup];
+    _roll = [[MerlaiPianoRoll alloc] initWithFrame:NSMakeRect(16, 260, 680, 165)];
     _roll.wantsLayer = YES; _roll.layer.cornerRadius = 5;
     _roll.layer.masksToBounds = YES; [self addSubview:_roll];
-    [self label:@"3  どう変えますか？" frame:NSMakeRect(16, 180, 170, 22) size:13 bold:YES];
-    _instruction = [[NSTextField alloc] initWithFrame:NSMakeRect(16, 143, 495, 30)];
+    [self label:@"3  候補を生成、または文章で編集" frame:NSMakeRect(16, 226, 260, 22) size:13 bold:YES];
+    _instruction = [[NSTextField alloc] initWithFrame:NSMakeRect(16, 188, 355, 30)];
     _instruction.stringValue = @"後半だけ音数を半分に。最後の音は残して";
     [self addSubview:_instruction];
     _plan = [self button:@"変更内容を確認" action:@selector(plan:)
-                   frame:NSMakeRect(520, 143, 176, 30)];
+                   frame:NSMakeRect(379, 188, 145, 30)];
+    [self button:@"候補を生成" action:@selector(generate:)
+           frame:NSMakeRect(532, 188, 164, 30)];
     _originalButton = [self button:@"原案を聴く" action:@selector(original:)
-                             frame:NSMakeRect(16, 98, 112, 30)];
+                             frame:NSMakeRect(16, 143, 112, 30)];
     _revisedButton = [self button:@"修正案を聴く" action:@selector(revised:)
-                            frame:NSMakeRect(136, 98, 120, 30)];
+                            frame:NSMakeRect(136, 143, 120, 30)];
     _apply = [self button:@"適用して修正案を聴く" action:@selector(apply:)
-                    frame:NSMakeRect(264, 98, 190, 30)];
+                    frame:NSMakeRect(264, 143, 190, 30)];
     _undoButton = [self button:@"一手戻す" action:@selector(undoEdit:)
-                         frame:NSMakeRect(462, 98, 100, 30)];
+                         frame:NSMakeRect(462, 143, 100, 30)];
     _apply.enabled = _plan.enabled = _originalButton.enabled =
         _revisedButton.enabled = _undoButton.enabled = NO;
     _message = [NSTextField wrappingLabelWithString:
       @"操作: ① Logicで黄色いサイクル範囲を指定  ② 取り込むを押す  ③ サイクル先頭から一周再生"];
-    _message.frame = NSMakeRect(16, 22, 680, 58);
+    _message.frame = NSMakeRect(16, 60, 680, 62);
     _message.font = [NSFont systemFontOfSize:12];
     _message.textColor = [NSColor colorWithWhite:.86 alpha:1];
     [self addSubview:_message];
@@ -166,7 +188,32 @@ static NSString *BeatLabel(double beat) {
   return self;
 }
 - (void)dealloc { [_timer invalidate]; }
+- (void)renameSource:(id)sender {
+  merlai_link_rename(_instanceId, _sourceName.stringValue.UTF8String);
+  _sourcesSignature = 0;
+}
+- (void)refreshSources {
+  LinkSourceInfo entries[64]{};
+  size_t count = std::min<size_t>(merlai_link_list(_instanceId, entries, 64), 64);
+  uint64_t signature = count;
+  for (size_t i = 0; i < count; ++i)
+    signature ^= entries[i].id * 1099511628211ULL ^ entries[i].revision;
+  if (signature == _sourcesSignature) return;
+  uint64_t selected = _sourcePopup.selectedItem.representedObject
+    ? [_sourcePopup.selectedItem.representedObject unsignedLongLongValue] : 0;
+  [_sourcePopup removeAllItems];
+  [_sourcePopup addItemWithTitle:@"入力元: このトラック"];
+  _sourcePopup.lastItem.representedObject = @(0);
+  for (size_t i = 0; i < count; ++i) {
+    NSString *name = [NSString stringWithUTF8String:entries[i].name];
+    [_sourcePopup addItemWithTitle:[NSString stringWithFormat:@"入力元: %@ (%u音)", name, entries[i].count]];
+    _sourcePopup.lastItem.representedObject = @(entries[i].id);
+    if (entries[i].id == selected) [_sourcePopup selectItem:_sourcePopup.lastItem];
+  }
+  _sourcesSignature = signature;
+}
 - (void)poll {
+  [self refreshSources];
   CaptureInfo info{}; UInt32 size = sizeof(info);
   if (AudioUnitGetProperty(_unit, CaptureProgress, 0, 0, &info, &size) != noErr)
     return;
@@ -188,6 +235,9 @@ static NSString *BeatLabel(double beat) {
         @"%@ → %@  •  %u音を取り込み済み", BeatLabel(_original.start),
         BeatLabel(_original.end), _original.count];
       [_roll setOriginal:_original]; [_roll setProposal:_original visible:NO];
+      merlai_link_rename(_instanceId, _sourceName.stringValue.UTF8String);
+      merlai_link_publish(_instanceId, _original);
+      _sourcesSignature = 0;
       _plan.enabled = _originalButton.enabled = YES;
       _message.stringValue =
         @"取り込み完了。青い原案を確認し、変更指示を書いて「変更内容を確認」を押してください。";
@@ -198,6 +248,28 @@ static NSString *BeatLabel(double beat) {
     _message.stringValue =
       @"サイクル範囲とリージョン内のノートを確認し、もう一度取り込んでください。";
   }
+}
+- (void)loadSource:(id)sender {
+  NSNumber *represented = _sourcePopup.selectedItem.representedObject;
+  uint64_t source = represented ? represented.unsignedLongLongValue : 0;
+  if (!source) {
+    _message.stringValue = @"このトラックでは「フレーズを取り込む」を使ってください。";
+    return;
+  }
+  uint64_t revision = 0;
+  Phrase linked{};
+  if (!merlai_link_read(source, linked, revision)) {
+    _message.stringValue = @"入力元を読み込めませんでした。入力元で取り込みを完了してください。";
+    return;
+  }
+  _original = _current = linked; _loaded = true; _undo.clear();
+  [_roll setOriginal:_original]; [_roll setProposal:_original visible:NO];
+  _progress.doubleValue = 1;
+  _captureSummary.stringValue = [NSString stringWithFormat:@"%@ → %@  •  別トラックから%u音",
+    BeatLabel(linked.start), BeatLabel(linked.end), linked.count];
+  _plan.enabled = _originalButton.enabled = YES;
+  _revisedButton.enabled = _undoButton.enabled = _apply.enabled = NO;
+  _message.stringValue = @"別トラックの入力を読み込みました。生成目的を選び「候補を生成」を押してください。";
 }
 - (void)arm:(id)sender {
   UInt32 value = 1;
@@ -236,6 +308,28 @@ static NSString *BeatLabel(double beat) {
   _message.stringValue = [NSString stringWithFormat:
     @"プレビュー: 青 %u音 → オレンジ %d音。よければ適用してください。",
     _current.count, n];
+  _apply.enabled = YES;
+}
+- (void)generate:(id)sender {
+  _apply.enabled = NO;
+  if (!_loaded) {
+    _message.stringValue = @"先にこのトラックを取り込むか、別トラックの入力を読み込んでください。";
+    return;
+  }
+  _draft = _current;
+  uint32_t purpose = (uint32_t)_purposePopup.indexOfSelectedItem;
+  int n = merlai_generate(_original.notes.data(), _original.count,
+    _original.end - _original.start, purpose, _draft.notes.data());
+  if (n < 0) {
+    _message.stringValue = @"この入力から候補を生成できませんでした。ノートを含む範囲を選んでください。";
+    return;
+  }
+  _draft.count = n;
+  [_roll setProposal:_draft visible:YES];
+  NSString *purposeName = @[@"ベース", @"コード", @"対旋律"][purpose];
+  _message.stringValue = [NSString stringWithFormat:
+    @"%@候補: 青 %u音 → オレンジ %d音。適用前のプレビューです。",
+    purposeName, _original.count, n];
   _apply.enabled = YES;
 }
 - (BOOL)submit:(const Phrase &)p {

@@ -20,6 +20,8 @@ struct CaptureInfo {
 };
 extern "C" int32_t merlai_edit(const Note *, size_t, double, const char *,
                                Note *);
+extern "C" int32_t merlai_generate(const Note *, size_t, double, uint32_t,
+                                   Note *);
 // Custom AU properties. The host marshals data between the Cocoa view and
 // component.
 enum : unsigned {
@@ -28,5 +30,6 @@ enum : unsigned {
   Submit,
   PlaybackMode,
   Status,
-  CaptureProgress
+  CaptureProgress,
+  InstanceID
 };
