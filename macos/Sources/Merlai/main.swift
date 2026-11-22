@@ -58,11 +58,23 @@ func helper(_ name: String, _ args: [String], input: Data? = nil) async throws -
     return data
   }.value
 }
+func midiProvider(_ path: String) -> NSItemProvider {
+  let url = URL(fileURLWithPath: path)
+  let provider = NSItemProvider()
+  provider.registerObject(url as NSURL, visibility: .all)
+  provider.registerFileRepresentation(
+    forTypeIdentifier: UTType.midi.identifier, fileOptions: [], visibility: .all
+  ) { completion in
+    completion(url, false, nil)
+    return nil
+  }
+  return provider
+}
 @MainActor final class ComposerModel: ObservableObject {
   @Published var melody: URL?
   @Published var drums: URL?
   @Published var instruments = [Instrument]()
-  @Published var instrument = ""
+  @Published var instrument = UserDefaults.standard.string(forKey: "instrument") ?? ""
   @Published var kickText = "36"
   @Published var tonic = -1
   @Published var bars = 2
@@ -121,6 +133,18 @@ func helper(_ name: String, _ args: [String], input: Data? = nil) async throws -
     try data.write(to: dir.appendingPathComponent("song.json"), options: .atomic)
     takes.append(Take(directory: dir, candidates: result.candidates, voice: instrument))
     selected = takes.count - 1
+  }
+  func restoreProfile() async {
+    guard !instrument.isEmpty else {
+      profile = nil
+      return
+    }
+    do {
+      let data = try await helper("Host", ["profile", instrument])
+      profile = try JSONDecoder().decode(Profile.self, from: data)
+    } catch {
+      profile = nil
+    }
   }
   func preview(_ index: Int) async throws {
     guard let take else { return }
@@ -181,7 +205,12 @@ struct Composer: View {
         Text("MIDIのみ").tag("")
         ForEach(model.instruments) { Text($0.name).tag($0.id) }
       }
-      .onChange(of: model.instrument) { _, _ in model.profile = nil }
+      .onChange(of: model.instrument) { _, _ in
+        UserDefaults.standard.set(model.instrument, forKey: "instrument")
+        model.profile = nil
+        model.clearTakes()
+        Task { await model.restoreProfile() }
+      }
       HStack {
         Button("音色を選んで計測") {
           model.perform {
@@ -192,7 +221,7 @@ struct Composer: View {
         }.disabled(model.instrument.isEmpty)
         if let profile = model.profile {
           Text(
-            "\(profile.tag) 立ち上がり \(Int(profile.attack_ms)) ms ／ 余韻 \(Int(profile.release_ms)) ms")
+            "\(profile.tag) 立ち上がり \(Int(profile.attack_ms)) ms ／ 余韻 \(Int(profile.release_ms)) ms（保存済み音色）")
         }
       }
       Button(model.takes.isEmpty ? "続きを3案生成" : "別テイクを生成") { model.perform { try await model.generate() } }.disabled(
@@ -209,7 +238,7 @@ struct Composer: View {
           Button("試聴") { model.perform { try await model.preview(index) } }.disabled(
             model.take?.voice.isEmpty != false)
           Text("候補 \(index+1) をLogicへドラッグ").onDrag {
-            NSItemProvider(object: URL(fileURLWithPath: item.file) as NSURL)
+            midiProvider(item.file)
           }
           Button("Finderで表示") {
             NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: item.file)])
@@ -226,6 +255,12 @@ struct Composer: View {
           model.instruments = try JSONDecoder().decode(
             [Instrument].self, from: await helper("Host", ["list"])
           ).sorted { $0.name < $1.name }
+          if !model.instrument.isEmpty,
+            !model.instruments.contains(where: { $0.id == model.instrument })
+          {
+            model.instrument = ""
+          }
+          await model.restoreProfile()
         } catch { model.status = error.localizedDescription }
       }
   }
