@@ -244,6 +244,14 @@ func run() throws {
   try FileManager.default.createDirectory(at: storage, withIntermediateDirectories: true)
   let unit = try instrument(comp)
   let stateURL = storage.appendingPathComponent(args[1] + ".plist")
+  let profileURL = storage.appendingPathComponent(args[1] + ".profile.json")
+  if args[0] == "profile" {
+    guard let data = try? Data(contentsOf: profileURL),
+      let profile = try? JSONDecoder().decode(Profile.self, from: data)
+    else { throw Failure("No saved voice profile") }
+    try emit(profile)
+    return
+  }
   if let data = try? Data(contentsOf: stateURL),
     let state = try PropertyListSerialization.propertyList(from: data, format: nil)
       as? [String: Any]
@@ -264,6 +272,7 @@ func run() throws {
     let key = SHA256.hash(data: fingerprint).map { String(format: "%02x", $0) }.joined()
     let p = try cachedProfile(key: key, tag: editor.tagField.stringValue, renderer: renderer)
     try data.write(to: stateURL, options: .atomic)
+    try JSONEncoder().encode(p).write(to: profileURL, options: .atomic)
     try emit(p)
   } else if args[0] == "render", args.count == 5, let index = Int(args[3]) {
     let song = try JSONDecoder().decode(
