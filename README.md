@@ -18,3 +18,5 @@ open dist/Merlai.app
 Rustエンジンは `crates/composer`、Macアプリと音源ホストは `macos` にあります。[開発とテスト](CONTRIBUTING.md)
 
 旧Python版とモデル接続コードは [python-legacy タグ](https://github.com/yoshitake945/Merlai/tree/python-legacy) から参照できます。
+
+設計の背景と旧版の原文は[設計判断の記録（ADR）](docs/adr/README.md)で参照できます。
