@@ -56,3 +56,8 @@ yarn-error.log*
 # Documentation with future plans
 CHANGELOG.md
 ARCHITECTURE.md
+
+/target/
+/macos/.build/
+/dist/
+!/tests/native/*.mid

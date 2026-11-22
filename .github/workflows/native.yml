@@ -1,0 +1,37 @@
+name: Native composer
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['macos-v*']
+permissions:
+  contents: read
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo fmt --check && cargo test --locked
+  mac:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/build-macos.sh
+      - run: ditto -c -k --keepParent dist/Merlai.app dist/Merlai-macOS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Merlai-macOS
+          path: dist/Merlai-macOS.zip
+  release:
+    needs: [engine, mac]
+    if: startsWith(github.ref, 'refs/tags/macos-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Merlai-macOS
+      - run: gh release create "$GITHUB_REF_NAME" Merlai-macOS.zip --repo "$GITHUB_REPOSITORY" --draft --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
