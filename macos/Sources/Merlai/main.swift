@@ -21,6 +21,11 @@ struct Candidate: Decodable, Identifiable {
   let file: String
   var id: String { file }
 }
+struct Take {
+  let directory: URL
+  let candidates: [Candidate]
+  let voice: String
+}
 struct Response: Decodable { let candidates: [Candidate] }
 func helper(_ name: String, _ args: [String], input: Data? = nil) async throws -> Data {
   try await Task.detached {
@@ -62,9 +67,23 @@ func helper(_ name: String, _ args: [String], input: Data? = nil) async throws -
   @Published var tonic = -1
   @Published var bars = 2
   @Published var profile: Profile?
-  @Published var options = [Candidate]()
-  @Published var session: URL?
-  @Published var voice = ""
+  @Published var takes = [Take]()
+  @Published var selected = 0
+  var take: Take? { takes.indices.contains(selected) ? takes[selected] : nil }
+  func clearTakes() {
+    player?.stop()
+    takes.removeAll()
+    selected = 0
+  }
+  func use(_ url: URL, asDrums: Bool) -> Bool {
+    guard url.isFileURL, ["mid", "midi"].contains(url.pathExtension.lowercased()) else {
+      status = "標準MIDIファイル（.mid / .midi）を選んでください"
+      return false
+    }
+    if asDrums { drums = url } else { melody = url }
+    status = ""
+    return true
+  }
   @Published var player: AVAudioPlayer?
   @Published var busy = false
   @Published var status = ""
@@ -94,18 +113,18 @@ func helper(_ name: String, _ args: [String], input: Data? = nil) async throws -
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
       "Merlai-" + UUID().uuidString)
     let req = Request(
-      melody: melody.path, drums: drums?.path, output: dir.path, bars: bars, seed: 0, kicks: kicks,
+      melody: melody.path, drums: drums?.path, output: dir.path, bars: bars, seed: takes.count, kicks: kicks,
       tonic: tonic < 0 ? nil : tonic, attack_ms: profile?.attack_ms ?? 0,
       release_ms: profile?.release_ms ?? 0)
     let data = try await helper("merlai-compose", [], input: JSONEncoder().encode(req))
     let result = try JSONDecoder().decode(Response.self, from: data)
     try data.write(to: dir.appendingPathComponent("song.json"), options: .atomic)
-    session = dir
-    options = result.candidates
-    voice = instrument
+    takes.append(Take(directory: dir, candidates: result.candidates, voice: instrument))
+    selected = takes.count - 1
   }
   func preview(_ index: Int) async throws {
-    guard let session else { return }
+    guard let take else { return }
+    let session = take.directory
     let url = session.appendingPathComponent("preview-\(index).caf")
     if !FileManager.default.fileExists(atPath: url.path) {
       let temporary = session.appendingPathComponent(UUID().uuidString + ".caf")
@@ -113,7 +132,7 @@ func helper(_ name: String, _ args: [String], input: Data? = nil) async throws -
       _ = try await helper(
         "Host",
         [
-          "render", voice, session.appendingPathComponent("song.json").path, String(index),
+          "render", take.voice, session.appendingPathComponent("song.json").path, String(index),
           temporary.path,
         ])
       try FileManager.default.moveItem(at: temporary, to: url)
@@ -127,13 +146,25 @@ struct Composer: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       HStack {
-        Button("メロディーMIDIを開く") { if let url = model.pick() { model.melody = url } }
+        Button("メロディーMIDIを開く") { if let url = model.pick() { _ = model.use(url, asDrums: false) } }
         Text(model.melody?.lastPathComponent ?? "未選択")
       }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .contentShape(Rectangle())
+      .dropDestination(for: URL.self) { urls, _ in
+        guard !model.busy, urls.count == 1, let url = urls.first else { return false }
+        return model.use(url, asDrums: false)
+      }
       HStack {
-        Button("ドラムMIDIを開く") { if let url = model.pick() { model.drums = url } }
+        Button("ドラムMIDIを開く") { if let url = model.pick() { _ = model.use(url, asDrums: true) } }
         Text(model.drums?.lastPathComponent ?? "任意")
         if model.drums != nil { Button("外す") { model.drums = nil } }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .contentShape(Rectangle())
+      .dropDestination(for: URL.self) { urls, _ in
+        guard !model.busy, urls.count == 1, let url = urls.first else { return false }
+        return model.use(url, asDrums: true)
       }
       HStack {
         Text("キック番号")
@@ -156,8 +187,7 @@ struct Composer: View {
           model.perform {
             let data = try await helper("Host", ["configure", model.instrument])
             model.profile = try JSONDecoder().decode(Profile.self, from: data)
-            model.options = []
-            model.session = nil
+            model.clearTakes()
           }
         }.disabled(model.instrument.isEmpty)
         if let profile = model.profile {
@@ -165,12 +195,19 @@ struct Composer: View {
             "\(profile.tag) 立ち上がり \(Int(profile.attack_ms)) ms ／ 余韻 \(Int(profile.release_ms)) ms")
         }
       }
-      Button("続きを3案生成") { model.perform { try await model.generate() } }.disabled(
+      Button(model.takes.isEmpty ? "続きを3案生成" : "別テイクを生成") { model.perform { try await model.generate() } }.disabled(
         model.melody == nil)
-      ForEach(Array(model.options.enumerated()), id: \.element.id) { index, item in
+      if !model.takes.isEmpty {
+        Picker("テイク", selection: $model.selected) {
+          ForEach(model.takes.indices, id: \.self) { index in
+            Text("テイク \(index + 1)").tag(index)
+          }
+        }.onChange(of: model.selected) { _, _ in model.player?.stop() }
+      }
+      ForEach(Array((model.take?.candidates ?? []).enumerated()), id: \.element.id) { index, item in
         HStack {
           Button("試聴") { model.perform { try await model.preview(index) } }.disabled(
-            model.voice.isEmpty)
+            model.take?.voice.isEmpty != false)
           Text("候補 \(index+1) をLogicへドラッグ").onDrag {
             NSItemProvider(object: URL(fileURLWithPath: item.file) as NSURL)
           }
@@ -182,6 +219,8 @@ struct Composer: View {
       if model.busy { ProgressView().controlSize(.small) }
       Text(model.status).foregroundStyle(.secondary).textSelection(.enabled)
     }.padding(24).frame(minWidth: 510).disabled(model.busy)
+      .onChange(of: model.melody) { _, _ in model.clearTakes() }
+      .onChange(of: model.drums) { _, _ in model.clearTakes() }
       .task {
         do {
           model.instruments = try JSONDecoder().decode(

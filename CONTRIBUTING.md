@@ -12,3 +12,5 @@ Macアプリの変更はApple Siliconで `scripts/build-macos.sh` を実行し�
 ## CIと配布
 
 PRではGitHub ActionsがRustの書式・テストを検査し、macOSでアプリをビルドして署名を検証します。Macジョブの成果物はアプリを含むZIPです。配布時は実機で確認したコミットに `macos-v` で始まるバージョンタグを付けます。タグのビルドが成功するとZIP付きのドラフトReleaseが作成されるため、対応環境と検証結果を確認して公開します。[ワークフロー](.github/workflows/native.yml)
+
+アーキテクチャや制作フローの判断を変更する場合は、[ADRの索引](docs/adr/README.md)から理由と後継の判断をたどれるようにしてください。

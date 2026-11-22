@@ -21,3 +21,5 @@ open dist/Merlai.app
 - [開発・テスト・リリース](CONTRIBUTING.md)
 - [変更履歴](CHANGELOG.md)
 - [行動規範](CODE_OF_CONDUCT.md)・[ライセンス](LICENSE)・[クレジット](NOTICE)
+
+設計の背景と旧版の原文は[設計判断の記録（ADR）](docs/adr/README.md)で参照できます。
