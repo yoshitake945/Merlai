@@ -24,6 +24,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "merlai-phrase-edit"
+version = "0.1.0"
+
+[[package]]
 name = "midly"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
