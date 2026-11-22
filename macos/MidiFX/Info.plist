@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>io.github.yoshitake945.Merlai.MidiFX</string>
+<key>CFBundleExecutable</key><string>MerlaiFX</string>
+<key>CFBundleName</key><string>Merlai MIDI FX</string>
+<key>CFBundlePackageType</key><string>BNDL</string>
+<key>CFBundleVersion</key><string>1</string><key>CFBundleShortVersionString</key><string>0.1.0</string>
+<key>AudioComponents</key><array><dict>
+<key>type</key><string>aumi</string><key>subtype</key><string>MrFx</string><key>manufacturer</key><string>Mrla</string>
+<key>name</key><string>Merlai: Merlai</string><key>description</key><string>Phrase editor</string>
+<key>version</key><integer>65536</integer><key>factoryFunction</key><string>MerlaiFXFactory</string><key>sandboxSafe</key><true/>
+</dict></array></dict></plist>

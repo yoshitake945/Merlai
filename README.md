@@ -23,3 +23,5 @@ open dist/Merlai.app
 - [行動規範](CODE_OF_CONDUCT.md)・[ライセンス](LICENSE)・[クレジット](NOTICE)
 
 設計の背景と旧版の原文は[設計判断の記録（ADR）](docs/adr/README.md)で参照できます。
+
+Logicのトラックで既存の音色を使ってフレーズを推敲するには、[Merlai MIDI FXのビルドと操作](macos/MidiFX/README.md)を参照してください。
