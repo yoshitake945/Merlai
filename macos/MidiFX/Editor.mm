@@ -206,7 +206,8 @@ static NSString *BeatLabel(double beat) {
   _sourcePopup.lastItem.representedObject = @(0);
   for (size_t i = 0; i < count; ++i) {
     NSString *name = [NSString stringWithUTF8String:entries[i].name];
-    [_sourcePopup addItemWithTitle:[NSString stringWithFormat:@"入力元: %@ (%u音)", name, entries[i].count]];
+    NSString *kind = entries[i].kind == 1 ? @"音声" : @"MIDI";
+    [_sourcePopup addItemWithTitle:[NSString stringWithFormat:@"入力元: %@ [%@] (%u)", name, kind, entries[i].count]];
     _sourcePopup.lastItem.representedObject = @(entries[i].id);
     if (entries[i].id == selected) [_sourcePopup selectItem:_sourcePopup.lastItem];
   }

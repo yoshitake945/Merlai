@@ -44,6 +44,14 @@ void merlai_link_rename(uint64_t id, const char *name) {
   }
 }
 
+void merlai_link_set_kind(uint64_t id, uint32_t kind) {
+  std::lock_guard lock(registryMutex);
+  auto found = std::find_if(registry.begin(), registry.end(),
+                            [id](const Entry &entry) { return entry.info.id == id; });
+  if (found != registry.end())
+    found->info.kind = kind;
+}
+
 void merlai_link_publish(uint64_t id, const Phrase &phrase) {
   std::lock_guard lock(registryMutex);
   auto found = std::find_if(registry.begin(), registry.end(),

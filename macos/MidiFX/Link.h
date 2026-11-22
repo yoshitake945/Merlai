@@ -7,12 +7,14 @@ struct LinkSourceInfo {
   uint64_t id = 0, revision = 0;
   char name[64]{};
   uint32_t count = 0;
+  uint32_t kind = 0; // 0: MIDI, 1: analyzed audio
   double start = 0, end = 0;
 };
 
 uint64_t merlai_link_register();
 void merlai_link_unregister(uint64_t id);
 void merlai_link_rename(uint64_t id, const char *name);
+void merlai_link_set_kind(uint64_t id, uint32_t kind);
 void merlai_link_publish(uint64_t id, const Phrase &phrase);
 size_t merlai_link_list(uint64_t exclude, LinkSourceInfo *output,
                         size_t capacity);

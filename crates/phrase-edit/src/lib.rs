@@ -148,6 +148,21 @@ fn generate(input: &[Note], span: f64, purpose: GenerationPurpose) -> Result<Vec
     let generated = match purpose {
         GenerationPurpose::Bass => {
             let mut result = Vec::new();
+            let analyzed_audio = sorted
+                .iter()
+                .all(|note| note.pitch == 36 && note.end > note.start);
+            if analyzed_audio {
+                for note in &sorted {
+                    result.push(Note {
+                        start: note.start,
+                        end: (note.start + 0.2).min(span),
+                        pitch: 36,
+                        velocity: note.velocity.clamp(48, 112),
+                        channel: 0,
+                    });
+                }
+                return Ok(result);
+            }
             let mut beat = -1_i64;
             for note in &sorted {
                 let current = note.start.floor() as i64;
@@ -342,6 +357,26 @@ mod tests {
             .iter()
             .zip(notes.iter().step_by(2))
             .all(|(a, b)| a.pitch < b.pitch));
+
+        let drum_onsets = [
+            Note {
+                start: 0.,
+                end: 0.1,
+                pitch: 36,
+                velocity: 90,
+                channel: 0,
+            },
+            Note {
+                start: 0.75,
+                end: 0.85,
+                pitch: 36,
+                velocity: 70,
+                channel: 0,
+            },
+        ];
+        let groove = generate(&drum_onsets, 1., GenerationPurpose::Bass).unwrap();
+        assert_eq!(groove.len(), 2);
+        assert_eq!(groove[1].start, 0.75);
     }
 
     #[test]
