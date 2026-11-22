@@ -25,9 +25,10 @@ extern "C" int32_t merlai_generate(const Note *, size_t, double, uint32_t,
 struct Onset {
   uint32_t frame;
   float strength;
+  float brightness;
 };
 struct AudioAnalyzerState {
-  float envelope, baseline, previous;
+  float envelope, high_envelope, baseline, previous, previous_sample;
   uint32_t cooldown;
 };
 extern "C" size_t merlai_detect_onsets(AudioAnalyzerState *, const float *,

@@ -104,9 +104,15 @@ public:
       double relative = absolute - loopLeft;
       uint8_t velocity = static_cast<uint8_t>(
           std::clamp(35.f + onsets[i].strength * 90.f, 1.f, 127.f));
+      // Publish a General MIDI drum role so downstream generation can retain
+      // more than timing: low attacks become kick, mid attacks snare and
+      // bright/noisy attacks closed hi-hat.
+      uint8_t pitch = onsets[i].brightness < .36f
+                          ? 36
+                          : (onsets[i].brightness < .62f ? 38 : 42);
       captured.notes[captured.count++] = {
-          relative, std::min(relative + .12, loopRight - loopLeft), 36,
-          velocity, 0};
+          relative, std::min(relative + .12, loopRight - loopLeft), pitch,
+          velocity, 9};
       captureCount.store(captured.count, std::memory_order_relaxed);
     }
     if (blockBeat < loopRight &&

@@ -85,10 +85,12 @@ int main() {
   size = sizeof(onsets);
   assert(AudioUnitGetProperty(unit, ReadPhrase, 0, 0, &onsets, &size) == noErr);
   assert(onsets.count == 2);
-  assert(onsets.notes[0].pitch == 36 &&
+  assert((onsets.notes[0].pitch == 36 || onsets.notes[0].pitch == 38 ||
+          onsets.notes[0].pitch == 42) &&
+         onsets.notes[0].channel == 9 &&
          onsets.notes[1].start == 1. + 10. / maximumFrames);
   AudioUnitUninitialize(unit);
   AudioComponentInstanceDispose(unit);
-  std::puts("Audio pass-through and two-onset cycle capture passed.");
+  std::puts("Audio pass-through and classified two-onset capture passed.");
 }
 

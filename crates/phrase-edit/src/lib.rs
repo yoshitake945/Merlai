@@ -14,6 +14,8 @@ pub struct Note {
 pub struct Onset {
     pub frame: u32,
     pub strength: f32,
+    /// 0 is dominated by low frequencies, 1 by fast/high-frequency changes.
+    pub brightness: f32,
 }
 
 /// Fixed-size streaming detector state. It is initialized off the audio thread
@@ -22,8 +24,10 @@ pub struct Onset {
 #[derive(Clone, Copy, Debug)]
 pub struct AudioAnalyzerState {
     envelope: f32,
+    high_envelope: f32,
     baseline: f32,
     previous: f32,
+    previous_sample: f32,
     cooldown: u32,
 }
 
@@ -31,8 +35,10 @@ impl Default for AudioAnalyzerState {
     fn default() -> Self {
         Self {
             envelope: 0.,
+            high_envelope: 0.,
             baseline: 0.002,
             previous: 0.,
+            previous_sample: 0.,
             cooldown: 0,
         }
     }
@@ -51,7 +57,9 @@ fn detect_onsets(
     let mut count = 0;
     for (frame, sample) in samples.iter().enumerate() {
         let magnitude = sample.abs().min(4.);
+        let high = (sample - state.previous_sample).abs().min(4.);
         state.envelope += 0.18 * (magnitude - state.envelope);
+        state.high_envelope += 0.18 * (high - state.high_envelope);
         state.baseline += 0.0005 * (state.envelope - state.baseline);
         if state.cooldown > 0 {
             state.cooldown -= 1;
@@ -63,12 +71,16 @@ fn detect_onsets(
                 output[count] = Onset {
                     frame: frame as u32,
                     strength: (state.envelope / threshold).min(4.) / 4.,
+                    brightness: (state.high_envelope
+                        / (state.envelope + state.high_envelope + 1e-6))
+                        .clamp(0., 1.),
                 };
                 count += 1;
             }
             state.cooldown = refractory;
         }
         state.previous = state.envelope;
+        state.previous_sample = *sample;
     }
     count
 }
@@ -148,11 +160,15 @@ fn generate(input: &[Note], span: f64, purpose: GenerationPurpose) -> Result<Vec
     let generated = match purpose {
         GenerationPurpose::Bass => {
             let mut result = Vec::new();
-            let analyzed_audio = sorted
-                .iter()
-                .all(|note| note.pitch == 36 && note.end > note.start);
-            if analyzed_audio {
-                for note in &sorted {
+            let analyzed_drums = sorted.iter().all(|note| {
+                note.channel == 9 && matches!(note.pitch, 36 | 38 | 42) && note.end > note.start
+            });
+            if analyzed_drums {
+                let has_kick = sorted.iter().any(|note| note.pitch == 36);
+                for note in sorted
+                    .iter()
+                    .filter(|note| !has_kick || note.pitch == 36)
+                {
                     result.push(Note {
                         start: note.start,
                         end: (note.start + 0.2).min(span),
@@ -364,19 +380,19 @@ mod tests {
                 end: 0.1,
                 pitch: 36,
                 velocity: 90,
-                channel: 0,
+                channel: 9,
             },
             Note {
                 start: 0.75,
                 end: 0.85,
-                pitch: 36,
+                pitch: 42,
                 velocity: 70,
-                channel: 0,
+                channel: 9,
             },
         ];
         let groove = generate(&drum_onsets, 1., GenerationPurpose::Bass).unwrap();
-        assert_eq!(groove.len(), 2);
-        assert_eq!(groove[1].start, 0.75);
+        assert_eq!(groove.len(), 1);
+        assert_eq!(groove[0].start, 0.);
     }
 
     #[test]
@@ -396,5 +412,25 @@ mod tests {
         assert_eq!(count, 1);
         assert_eq!(events[0].frame, 70);
         assert!(events[0].strength > 0.);
+    }
+
+    #[test]
+    fn onset_brightness_separates_low_and_noisy_attacks() {
+        let mut low = vec![0.; 256];
+        for (i, sample) in low.iter_mut().enumerate().skip(64) {
+            *sample = ((i - 64) as f32 * 0.05).sin() * 0.8;
+        }
+        let mut noisy = vec![0.; 256];
+        for (i, sample) in noisy.iter_mut().enumerate().skip(64) {
+            *sample = if i % 2 == 0 { 0.8 } else { -0.8 };
+        }
+        let mut low_state = AudioAnalyzerState::default();
+        let mut noisy_state = AudioAnalyzerState::default();
+        let mut low_events = [Onset::default(); 4];
+        let mut noisy_events = [Onset::default(); 4];
+        let low_count = detect_onsets(&mut low_state, &low, 48_000., &mut low_events);
+        let noisy_count = detect_onsets(&mut noisy_state, &noisy, 48_000., &mut noisy_events);
+        assert!(low_count > 0 && noisy_count > 0);
+        assert!(noisy_events[0].brightness > low_events[0].brightness);
     }
 }
