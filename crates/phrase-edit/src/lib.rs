@@ -144,11 +144,23 @@ fn edit(input: &[Note], span: f64, text: &str) -> Result<Vec<Note>, ()> {
 }
 
 #[repr(u32)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GenerationPurpose {
     Bass = 0,
     Chords = 1,
     CounterMelody = 2,
+}
+
+/// Optional non-realtime generator inserted after the captured phrase has
+/// become an immutable snapshot. Implementations may call a local or remote
+/// model, but must return a complete candidate rather than mutating `input`.
+pub trait GenerationModel {
+    fn generate(
+        &self,
+        input: &[Note],
+        span: f64,
+        purpose: GenerationPurpose,
+    ) -> Result<Vec<Note>, ()>;
 }
 
 fn bass_pitch(pitch: u8) -> u8 {
@@ -244,6 +256,40 @@ fn generate(input: &[Note], span: f64, purpose: GenerationPurpose) -> Result<Vec
     (!generated.is_empty()).then_some(generated).ok_or(())
 }
 
+fn valid_candidate(notes: &[Note], span: f64) -> bool {
+    !notes.is_empty()
+        && notes.len() <= 2048
+        && notes.iter().all(|note| {
+            note.start.is_finite()
+                && note.end.is_finite()
+                && note.start >= 0.
+                && note.end > note.start
+                && note.end <= span
+                && note.pitch <= 127
+                && note.velocity <= 127
+                && note.channel <= 15
+        })
+}
+
+/// Runs an optional model on the UI/worker side and falls back to the existing
+/// deterministic rules on errors or malformed output. The fallback keeps
+/// generation usable when no model is configured or a provider is unavailable.
+pub fn generate_candidate(
+    input: &[Note],
+    span: f64,
+    purpose: GenerationPurpose,
+    model: Option<&dyn GenerationModel>,
+) -> Result<Vec<Note>, ()> {
+    if let Some(model) = model {
+        if let Ok(candidate) = model.generate(input, span, purpose) {
+            if valid_candidate(&candidate, span) {
+                return Ok(candidate);
+            }
+        }
+    }
+    generate(input, span, purpose)
+}
+
 /// Returns the count, or -1 for an unrecognized instruction.
 /// # Safety
 /// Caller supplies count initialized notes, count writable output slots, and a NUL-terminated UTF-8 command.
@@ -291,7 +337,12 @@ pub unsafe extern "C" fn merlai_generate(
         2 => GenerationPurpose::CounterMelody,
         _ => return -1,
     };
-    match generate(std::slice::from_raw_parts(input, count), span, purpose) {
+    match generate_candidate(
+        std::slice::from_raw_parts(input, count),
+        span,
+        purpose,
+        None,
+    ) {
         Ok(result) if result.len() <= 2048 => {
             std::ptr::copy_nonoverlapping(result.as_ptr(), output, result.len());
             result.len() as i32
@@ -394,6 +445,70 @@ mod tests {
         let groove = generate(&drum_onsets, 1., GenerationPurpose::Bass).unwrap();
         assert_eq!(groove.len(), 1);
         assert_eq!(groove[0].start, 0.);
+    }
+
+    #[test]
+    fn model_generation_uses_valid_output_and_falls_back_safely() {
+        struct Model(Result<Vec<Note>, ()>);
+        impl GenerationModel for Model {
+            fn generate(
+                &self,
+                _input: &[Note],
+                _span: f64,
+                purpose: GenerationPurpose,
+            ) -> Result<Vec<Note>, ()> {
+                assert_eq!(purpose, GenerationPurpose::CounterMelody);
+                self.0.clone()
+            }
+        }
+
+        let input = [Note {
+            start: 0.,
+            end: 0.5,
+            pitch: 64,
+            velocity: 80,
+            channel: 0,
+        }];
+        let modeled = Note {
+            start: 0.25,
+            end: 0.75,
+            pitch: 72,
+            velocity: 70,
+            channel: 0,
+        };
+        assert_eq!(
+            generate_candidate(
+                &input,
+                1.,
+                GenerationPurpose::CounterMelody,
+                Some(&Model(Ok(vec![modeled])))
+            )
+            .unwrap(),
+            vec![modeled]
+        );
+
+        let deterministic = generate(&input, 1., GenerationPurpose::CounterMelody).unwrap();
+        assert_eq!(
+            generate_candidate(
+                &input,
+                1.,
+                GenerationPurpose::CounterMelody,
+                Some(&Model(Err(())))
+            )
+            .unwrap(),
+            deterministic
+        );
+        let outside_span = Note { end: 2., ..modeled };
+        assert_eq!(
+            generate_candidate(
+                &input,
+                1.,
+                GenerationPurpose::CounterMelody,
+                Some(&Model(Ok(vec![outside_span])))
+            )
+            .unwrap(),
+            deterministic
+        );
     }
 
     #[test]
