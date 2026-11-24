@@ -16,6 +16,8 @@
 
 Generation Engineのモデル境界は`GenerationModel`とし、確定済みのノート列、対象範囲、生成目的を入力して、完成した候補を返す。モデルを設定しない場合、呼び出しが失敗した場合、または範囲外・不正な候補が返った場合は、既存の決定的ルールへフォールバックする。モデル候補にも、ノート数上限、有限な時刻、対象範囲、MIDI値の検証を適用する。
 
+モデルプロバイダとの交換形式はバージョン付きJSONとする。要求には`instruction`、`purpose`、`span`、確定済みの`notes`を含め、応答は候補の`notes`だけを返す。`ModelTransport`はこのJSONバイト列の受け渡しだけを担当し、ネットワーク、ローカルプロセス、認証、モデル選択をGeneration Engineから分離する。JSONの通信・解析失敗も決定的ルールへのフォールバック対象とする。
+
 ```text
 MIDIトラック ─ MIDI Listener ─┐
                               ├─ Context snapshot ─ Generation Engine

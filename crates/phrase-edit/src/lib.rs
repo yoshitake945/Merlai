@@ -144,7 +144,8 @@ fn edit(input: &[Note], span: f64, text: &str) -> Result<Vec<Note>, ()> {
 }
 
 #[repr(u32)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum GenerationPurpose {
     Bass = 0,
     Chords = 1,
@@ -160,7 +161,99 @@ pub trait GenerationModel {
         input: &[Note],
         span: f64,
         purpose: GenerationPurpose,
+        instruction: &str,
     ) -> Result<Vec<Note>, ()>;
+}
+
+/// Provider-neutral byte transport. Network access, authentication and model
+/// selection stay outside the generation engine and its Audio Unit.
+pub trait ModelTransport {
+    fn complete(&self, request: &[u8]) -> Result<Vec<u8>, ()>;
+}
+
+#[derive(serde::Serialize)]
+struct ModelRequest<'a> {
+    version: u8,
+    instruction: &'a str,
+    purpose: GenerationPurpose,
+    span: f64,
+    notes: Vec<ModelNote>,
+}
+
+#[derive(Clone, Copy, serde::Deserialize, serde::Serialize)]
+struct ModelNote {
+    start: f64,
+    end: f64,
+    pitch: u8,
+    velocity: u8,
+    channel: u8,
+}
+
+impl From<&Note> for ModelNote {
+    fn from(note: &Note) -> Self {
+        Self {
+            start: note.start,
+            end: note.end,
+            pitch: note.pitch,
+            velocity: note.velocity,
+            channel: note.channel,
+        }
+    }
+}
+
+impl From<ModelNote> for Note {
+    fn from(note: ModelNote) -> Self {
+        Self {
+            start: note.start,
+            end: note.end,
+            pitch: note.pitch,
+            velocity: note.velocity,
+            channel: note.channel,
+        }
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct ModelResponse {
+    notes: Vec<ModelNote>,
+}
+
+/// JSON adapter shared by local and remote providers. It only runs when passed
+/// to `generate_candidate`, which the Audio Unit invokes on its worker queue.
+pub struct JsonGenerationModel<T> {
+    transport: T,
+}
+
+impl<T> JsonGenerationModel<T> {
+    pub fn new(transport: T) -> Self {
+        Self { transport }
+    }
+}
+
+impl<T: ModelTransport> GenerationModel for JsonGenerationModel<T> {
+    fn generate(
+        &self,
+        input: &[Note],
+        span: f64,
+        purpose: GenerationPurpose,
+        instruction: &str,
+    ) -> Result<Vec<Note>, ()> {
+        let request = serde_json::to_vec(&ModelRequest {
+            version: 1,
+            instruction,
+            purpose,
+            span,
+            notes: input.iter().map(ModelNote::from).collect(),
+        })
+        .map_err(|_| ())?;
+        let response = self.transport.complete(&request)?;
+        Ok(serde_json::from_slice::<ModelResponse>(&response)
+            .map_err(|_| ())?
+            .notes
+            .into_iter()
+            .map(Note::from)
+            .collect())
+    }
 }
 
 fn bass_pitch(pitch: u8) -> u8 {
@@ -278,10 +371,11 @@ pub fn generate_candidate(
     input: &[Note],
     span: f64,
     purpose: GenerationPurpose,
+    instruction: &str,
     model: Option<&dyn GenerationModel>,
 ) -> Result<Vec<Note>, ()> {
     if let Some(model) = model {
-        if let Ok(candidate) = model.generate(input, span, purpose) {
+        if let Ok(candidate) = model.generate(input, span, purpose, instruction) {
             if valid_candidate(&candidate, span) {
                 return Ok(candidate);
             }
@@ -341,6 +435,7 @@ pub unsafe extern "C" fn merlai_generate(
         std::slice::from_raw_parts(input, count),
         span,
         purpose,
+        "",
         None,
     ) {
         Ok(result) if result.len() <= 2048 => {
@@ -456,6 +551,7 @@ mod tests {
                 _input: &[Note],
                 _span: f64,
                 purpose: GenerationPurpose,
+                _instruction: &str,
             ) -> Result<Vec<Note>, ()> {
                 assert_eq!(purpose, GenerationPurpose::CounterMelody);
                 self.0.clone()
@@ -481,6 +577,7 @@ mod tests {
                 &input,
                 1.,
                 GenerationPurpose::CounterMelody,
+                "もっと跳躍させて",
                 Some(&Model(Ok(vec![modeled])))
             )
             .unwrap(),
@@ -493,6 +590,7 @@ mod tests {
                 &input,
                 1.,
                 GenerationPurpose::CounterMelody,
+                "",
                 Some(&Model(Err(())))
             )
             .unwrap(),
@@ -504,10 +602,74 @@ mod tests {
                 &input,
                 1.,
                 GenerationPurpose::CounterMelody,
+                "",
                 Some(&Model(Ok(vec![outside_span])))
             )
             .unwrap(),
             deterministic
+        );
+    }
+
+    #[test]
+    fn json_model_protocol_carries_instruction_and_notes() {
+        use std::sync::{Arc, Mutex};
+
+        struct Transport {
+            request: Arc<Mutex<Vec<u8>>>,
+            response: Vec<u8>,
+        }
+        impl ModelTransport for Transport {
+            fn complete(&self, request: &[u8]) -> Result<Vec<u8>, ()> {
+                *self.request.lock().unwrap() = request.to_vec();
+                Ok(self.response.clone())
+            }
+        }
+
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let model = JsonGenerationModel::new(Transport {
+            request: Arc::clone(&captured),
+            response:
+                br#"{"notes":[{"start":0.25,"end":0.75,"pitch":72,"velocity":70,"channel":0}]}"#
+                    .to_vec(),
+        });
+        let input = [Note {
+            start: 0.,
+            end: 0.5,
+            pitch: 64,
+            velocity: 80,
+            channel: 0,
+        }];
+        let result = generate_candidate(
+            &input,
+            1.,
+            GenerationPurpose::CounterMelody,
+            "もっと跳躍させて",
+            Some(&model),
+        )
+        .unwrap();
+        assert_eq!(result[0].pitch, 72);
+
+        let request: serde_json::Value = serde_json::from_slice(&captured.lock().unwrap()).unwrap();
+        assert_eq!(request["version"], 1);
+        assert_eq!(request["instruction"], "もっと跳躍させて");
+        assert_eq!(request["purpose"], "counter_melody");
+        assert_eq!(request["span"], 1.);
+        assert_eq!(request["notes"][0]["pitch"], 64);
+
+        let malformed = JsonGenerationModel::new(Transport {
+            request: Arc::clone(&captured),
+            response: b"not json".to_vec(),
+        });
+        assert_eq!(
+            generate_candidate(
+                &input,
+                1.,
+                GenerationPurpose::CounterMelody,
+                "自由文",
+                Some(&malformed),
+            )
+            .unwrap(),
+            generate(&input, 1., GenerationPurpose::CounterMelody).unwrap()
         );
     }
 
