@@ -31,22 +31,110 @@ static NSString *PhraseSummary(const Phrase &phrase) {
 @interface MerlaiPianoRoll : NSView {
   Phrase _original, _proposal;
   BOOL _hasOriginal, _hasProposal;
+  BOOL _editable, _dragging, _resizing, _savedDragUndo;
+  NSInteger _selected;
+  NSPoint _dragOrigin;
+  Note _dragNote;
+  uint8_t _displayLow, _displayHigh;
+  std::vector<Phrase> _editUndo;
+  __weak id _changeTarget;
+  SEL _changeAction;
 }
 - (void)setOriginal:(const Phrase &)p;
 - (void)setProposal:(const Phrase &)p visible:(BOOL)visible;
 - (void)clear;
+- (void)setEditable:(BOOL)editable target:(id)target action:(SEL)action;
+- (Phrase)proposal;
+- (void)undoCandidate;
 @end
 
 @implementation MerlaiPianoRoll
 - (BOOL)isFlipped { return YES; }
+- (BOOL)acceptsFirstResponder { return _editable; }
 - (void)setOriginal:(const Phrase &)p {
   _original = p; _hasOriginal = YES; [self setNeedsDisplay:YES];
 }
 - (void)setProposal:(const Phrase &)p visible:(BOOL)visible {
-  _proposal = p; _hasProposal = visible; [self setNeedsDisplay:YES];
+  _proposal = p; _hasProposal = visible; _selected = -1; _editUndo.clear();
+  [self setNeedsDisplay:YES];
 }
 - (void)clear {
   _hasOriginal = _hasProposal = NO; [self setNeedsDisplay:YES];
+}
+- (void)setEditable:(BOOL)editable target:(id)target action:(SEL)action {
+  _editable = editable; _changeTarget = target; _changeAction = action; _selected = -1;
+}
+- (Phrase)proposal { return _proposal; }
+- (void)notifyChange {
+  [self setNeedsDisplay:YES];
+  if (_changeTarget && _changeAction) [NSApp sendAction:_changeAction to:_changeTarget from:self];
+}
+- (NSRect)proposalLane {
+  NSRect plot = NSInsetRect(self.bounds, 8, 7); plot.origin.x += 72; plot.size.width -= 72;
+  CGFloat h = (plot.size.height - 8) / 2;
+  return NSMakeRect(plot.origin.x, plot.origin.y + h + 8, plot.size.width, h);
+}
+- (NSRect)noteRect:(const Note &)note lane:(NSRect)lane {
+  double duration = std::max(0.001, _proposal.end - _proposal.start);
+  double pitchSpan = std::max<int>(5, _displayHigh - _displayLow + 1);
+  CGFloat x = lane.origin.x + lane.size.width * note.start / duration;
+  CGFloat width = std::max<CGFloat>(5, lane.size.width * (note.end - note.start) / duration);
+  CGFloat y = lane.origin.y + 3 + (_displayHigh - note.pitch) / pitchSpan * (lane.size.height - 12);
+  return NSMakeRect(x, y, width, 8);
+}
+- (void)mouseDown:(NSEvent *)event {
+  if (!_editable || !_hasProposal) return [super mouseDown:event];
+  [self.window makeFirstResponder:self];
+  NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+  NSRect lane = [self proposalLane]; _selected = -1;
+  for (NSInteger i = (NSInteger)_proposal.count - 1; i >= 0; --i) {
+    NSRect rect = NSInsetRect([self noteRect:_proposal.notes[i] lane:lane], -3, -3);
+    if (NSPointInRect(point, rect)) {
+      _selected = i; _dragging = YES; _dragOrigin = point; _dragNote = _proposal.notes[i];
+      _resizing = point.x >= NSMaxX(rect) - 9; _savedDragUndo = NO; break;
+    }
+  }
+  [self setNeedsDisplay:YES];
+}
+- (void)mouseDragged:(NSEvent *)event {
+  if (!_dragging || _selected < 0 || _selected >= (NSInteger)_proposal.count) return;
+  NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+  NSRect lane = [self proposalLane]; double span = _proposal.end - _proposal.start;
+  if (!_savedDragUndo) { _editUndo.push_back(_proposal); _savedDragUndo = YES; }
+  double beatDelta = (point.x - _dragOrigin.x) / lane.size.width * span;
+  double pitchSpan = std::max<int>(5, _displayHigh - _displayLow + 1);
+  int pitchDelta = (int)std::lround(-(point.y - _dragOrigin.y) / (lane.size.height - 12) * pitchSpan);
+  bool snap = !(event.modifierFlags & NSEventModifierFlagOption);
+  auto quantize = [&](double value) { return snap ? std::round(value * 4.) / 4. : value; };
+  Note note = _dragNote;
+  if (_resizing) {
+    note.end = std::clamp(quantize(_dragNote.end + beatDelta), note.start + 0.01, span);
+  } else {
+    double length = note.end - note.start;
+    note.start = std::clamp(quantize(_dragNote.start + beatDelta), 0., std::max(0., span - length));
+    note.end = note.start + length;
+    note.pitch = (uint8_t)std::clamp<int>((int)_dragNote.pitch + pitchDelta, 0, 127);
+  }
+  _proposal.notes[_selected] = note; [self notifyChange];
+}
+- (void)mouseUp:(NSEvent *)event { _dragging = NO; _savedDragUndo = NO; }
+- (void)keyDown:(NSEvent *)event {
+  if ((event.modifierFlags & NSEventModifierFlagCommand) &&
+      [event.charactersIgnoringModifiers.lowercaseString isEqual:@"z"]) {
+    [self undoCandidate]; return;
+  }
+  if ((event.keyCode == 51 || event.keyCode == 117) && _selected >= 0 &&
+      _selected < (NSInteger)_proposal.count) {
+    _editUndo.push_back(_proposal);
+    for (uint32_t i = (uint32_t)_selected; i + 1 < _proposal.count; ++i)
+      _proposal.notes[i] = _proposal.notes[i + 1];
+    --_proposal.count; _selected = -1; [self notifyChange]; return;
+  }
+  [super keyDown:event];
+}
+- (void)undoCandidate {
+  if (_editUndo.empty()) return;
+  _proposal = _editUndo.back(); _editUndo.pop_back(); _selected = -1; [self notifyChange];
 }
 - (void)drawPhrase:(const Phrase &)p rect:(NSRect)r color:(NSColor *)color
                  low:(uint8_t)low high:(uint8_t)high {
@@ -95,18 +183,26 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   };
   include(_original, _hasOriginal); include(_proposal, _hasProposal);
   if (low > high) { low = 60; high = 72; }
+  _displayLow = low > 3 ? low - 3 : 0; _displayHigh = std::min<int>(127, high + 3);
   if (_hasOriginal)
     [self drawPhrase:_original rect:top
-               color:[NSColor colorWithRed:.30 green:.68 blue:1 alpha:1] low:low high:high];
+               color:[NSColor colorWithRed:.30 green:.68 blue:1 alpha:1] low:_displayLow high:_displayHigh];
   if (_hasProposal)
     [self drawPhrase:_proposal rect:bottom
-               color:[NSColor colorWithRed:1 green:.55 blue:.28 alpha:1] low:low high:high];
+               color:[NSColor colorWithRed:1 green:.55 blue:.28 alpha:1] low:_displayLow high:_displayHigh];
   else {
     NSDictionary *empty = @{NSFontAttributeName: [NSFont systemFontOfSize:11],
       NSForegroundColorAttributeName: [NSColor colorWithWhite:.55 alpha:1]};
     [@"指示を確認すると表示されます"
         drawAtPoint:NSMakePoint(bottom.origin.x + 10, bottom.origin.y + 9)
       withAttributes:empty];
+  }
+  if (_editable && _selected >= 0 && _selected < (NSInteger)_proposal.count) {
+    [[NSColor whiteColor] setStroke];
+    NSBezierPath *selection = [NSBezierPath bezierPathWithRoundedRect:
+      NSInsetRect([self noteRect:_proposal.notes[_selected] lane:[self proposalLane]], -2, -2)
+      xRadius:2 yRadius:2];
+    selection.lineWidth = 2; [selection stroke];
   }
 }
 @end
@@ -115,15 +211,25 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   AudioUnit _unit;
   Phrase _original, _current, _draft;
   std::vector<Phrase> _undo;
-  NSTextField *_instruction, *_message, *_captureSummary, *_activeSource;
+  NSTextView *_instruction;
+  NSTextField *_message, *_captureSummary, *_activeSource, *_assistantMessage;
   NSTextField *_sourceName;
   NSTextField *_endpointField;
   NSPopUpButton *_sourcePopup, *_purposePopup, *_providerPopup, *_modelPopup;
   NSButton *_plan, *_generateButton, *_apply, *_originalButton, *_revisedButton, *_undoButton,
     *_builtinButton;
+  NSButton *_cancelButton;
   NSProgressIndicator *_progress;
-  MerlaiPianoRoll *_roll;
+  MerlaiPianoRoll *_roll, *_editorRoll;
+  NSView *_editorView;
+  NSSegmentedControl *_tabs;
+  NSArray<NSView *> *_generationSubviews;
   NSTimer *_timer;
+  NSTimer *_generationTimer;
+  NSTask *_modelTask;
+  NSDate *_generationStarted;
+  NSString *_generationStage;
+  NSArray<NSString *> *_suggestions;
   uint64_t _instanceId, _sourcesSignature;
   uint64_t _generationRevision;
   uint64_t _loadedSourceId, _loadedSourceRevision;
@@ -150,7 +256,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   [self addSubview:l]; return l;
 }
 - (instancetype)initWithUnit:(AudioUnit)unit {
-  if ((self = [super initWithFrame:NSMakeRect(0, 0, 720, 620)])) {
+  if ((self = [super initWithFrame:NSMakeRect(0, 0, 960, 720)])) {
     self.wantsLayer = YES;
     self.layer.backgroundColor = [NSColor colorWithWhite:.13 alpha:1].CGColor;
     _unit = unit;
@@ -203,9 +309,14 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _roll.wantsLayer = YES; _roll.layer.cornerRadius = 5;
     _roll.layer.masksToBounds = YES; [self addSubview:_roll];
     [self label:@"3  候補を生成、または文章で編集" frame:NSMakeRect(16, 246, 260, 22) size:13 bold:YES];
-    _instruction = [[NSTextField alloc] initWithFrame:NSMakeRect(16, 208, 355, 30)];
-    _instruction.stringValue = @"後半だけ音数を半分に。最後の音は残して";
-    [self addSubview:_instruction];
+    NSScrollView *instructionScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(16, 188, 355, 52)];
+    instructionScroll.hasVerticalScroller = YES; instructionScroll.borderType = NSBezelBorder;
+    _instruction = [[NSTextView alloc] initWithFrame:instructionScroll.bounds];
+    _instruction.string = @"後半だけ音数を半分に。最後の音は残して";
+    _instruction.font = [NSFont systemFontOfSize:13];
+    _instruction.richText = NO; _instruction.usesFindBar = YES;
+    _instruction.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    instructionScroll.documentView = _instruction; [self addSubview:instructionScroll];
     _plan = [self button:@"変更内容を確認" action:@selector(plan:)
                    frame:NSMakeRect(379, 208, 145, 30)];
     _generateButton = [self button:@"候補を生成" action:@selector(generate:)
@@ -221,6 +332,9 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _builtinButton = [self button:@"内蔵で生成" action:@selector(generateBuiltin:)
                             frame:NSMakeRect(570, 163, 126, 30)];
     _builtinButton.hidden = YES;
+    _cancelButton = [self button:@"生成を中止" action:@selector(cancelGeneration:)
+                           frame:NSMakeRect(570, 163, 126, 30)];
+    _cancelButton.hidden = YES;
     _apply.enabled = _plan.enabled = _originalButton.enabled =
         _revisedButton.enabled = _undoButton.enabled = NO;
     _message = [NSTextField wrappingLabelWithString:
@@ -229,6 +343,40 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _message.font = [NSFont systemFontOfSize:12];
     _message.textColor = [NSColor colorWithWhite:.86 alpha:1];
     [self addSubview:_message];
+    _assistantMessage = [NSTextField wrappingLabelWithString:@""];
+    _assistantMessage.frame = NSMakeRect(16, 36, 680, 20);
+    _assistantMessage.font = [NSFont systemFontOfSize:11];
+    _assistantMessage.textColor = [NSColor colorWithRed:.75 green:.86 blue:1 alpha:1];
+    [self addSubview:_assistantMessage];
+    _generationSubviews = [self.subviews copy];
+    _tabs = [[NSSegmentedControl alloc] initWithFrame:NSMakeRect(16, 682, 300, 28)];
+    _tabs.segmentCount = 2; [_tabs setLabel:@"生成" forSegment:0];
+    [_tabs setLabel:@"MIDI編集" forSegment:1]; _tabs.selectedSegment = 0;
+    _tabs.target = self; _tabs.action = @selector(changeTab:); [self addSubview:_tabs];
+    _editorView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 960, 672)];
+    _editorView.hidden = YES; _editorView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    _editorView.wantsLayer = YES; _editorView.layer.backgroundColor =
+      [NSColor colorWithWhite:.13 alpha:1].CGColor; [self addSubview:_editorView];
+    NSTextField *editorTitle = [NSTextField labelWithString:
+      @"オレンジの修正案をドラッグ編集（Option: スナップ解除 / ⌘Z: 戻す）"];
+    editorTitle.frame = NSMakeRect(16, 636, 720, 22); editorTitle.textColor = NSColor.lightGrayColor;
+    [_editorView addSubview:editorTitle];
+    _editorRoll = [[MerlaiPianoRoll alloc] initWithFrame:NSMakeRect(16, 76, 928, 550)];
+    _editorRoll.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [_editorRoll setEditable:YES target:self action:@selector(editorChanged:)];
+    [_editorView addSubview:_editorRoll];
+    NSArray *editorButtons = @[
+      [NSButton buttonWithTitle:@"原案から編集用コピー" target:self action:@selector(beginManualEdit:)],
+      [NSButton buttonWithTitle:@"編集を一手戻す" target:self action:@selector(undoManualEdit:)],
+      [NSButton buttonWithTitle:@"修正案を聴く" target:self action:@selector(revised:)],
+      [NSButton buttonWithTitle:@"修正案を適用" target:self action:@selector(apply:)],
+    ];
+    CGFloat editorX = 16;
+    for (NSButton *button in editorButtons) {
+      button.frame = NSMakeRect(editorX, 28, 170, 32); button.bezelStyle = NSBezelStyleRounded;
+      [_editorView addSubview:button]; editorX += 180;
+    }
+    self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     __weak MerlaiPhrasePanel *weak = self;
     _timer = [NSTimer scheduledTimerWithTimeInterval:.12 repeats:YES
       block:^(NSTimer *t) { [weak poll]; }];
@@ -236,7 +384,25 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   }
   return self;
 }
-- (void)dealloc { [_timer invalidate]; }
+- (void)changeTab:(NSSegmentedControl *)sender {
+  BOOL editing = sender.selectedSegment == 1;
+  for (NSView *view in _generationSubviews) view.hidden = editing;
+  for (NSView *view in self.subviews) if (view.tag >= 7100 && view.tag < 7103) view.hidden = editing;
+  _editorView.hidden = !editing;
+}
+- (void)beginManualEdit:(id)sender {
+  if (!_loaded) { _message.stringValue = @"先にフレーズを取り込んでください。"; return; }
+  _draft = _current; _hasDraft = true;
+  [_roll setProposal:_draft visible:YES]; [_editorRoll setOriginal:_original];
+  [_editorRoll setProposal:_draft visible:YES];
+  _apply.enabled = _revisedButton.enabled = YES;
+}
+- (void)editorChanged:(MerlaiPianoRoll *)sender {
+  _draft = [sender proposal]; _hasDraft = true;
+  [_roll setProposal:_draft visible:YES]; _apply.enabled = _revisedButton.enabled = YES;
+}
+- (void)undoManualEdit:(id)sender { [_editorRoll undoCandidate]; }
+- (void)dealloc { [_timer invalidate]; [_generationTimer invalidate]; [_modelTask terminate]; }
 - (void)renameSource:(id)sender {
   merlai_link_rename(_instanceId, _sourceName.stringValue.UTF8String);
   _sourcesSignature = 0;
@@ -293,6 +459,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
       _activeSource.stringValue = [NSString stringWithFormat:@"使用中: %@ [MIDI]・%@・このトラック",
         _loadedSourceName, PhraseSummary(_original)];
       [_roll setOriginal:_original]; [_roll setProposal:_original visible:NO];
+      [_editorRoll setOriginal:_original]; [_editorRoll setProposal:_original visible:NO];
       merlai_link_rename(_instanceId, _sourceName.stringValue.UTF8String);
       merlai_link_publish(_instanceId, _original);
       _sourcesSignature = 0;
@@ -328,6 +495,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   _loadedSourceName = represented[@"name"] ?: @"別トラック";
   _loadedSourceKind = represented[@"kind"] ?: @"MIDI";
   [_roll setOriginal:_original]; [_roll setProposal:_original visible:NO];
+  [_editorRoll setOriginal:_original]; [_editorRoll setProposal:_original visible:NO];
   _progress.doubleValue = 1;
   _captureSummary.stringValue = [NSString stringWithFormat:@"%@ → %@  •  別トラックから%u音",
     BeatLabel(linked.start), BeatLabel(linked.end), linked.count];
@@ -342,7 +510,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   UInt32 value = 1;
   if (AudioUnitSetProperty(_unit, Arm, 0, 0, &value, sizeof(value)) == noErr) {
     ++_generationRevision; _generateButton.enabled = YES;
-    _loaded = false; _hasDraft = false; _undo.clear(); [_roll clear];
+    _loaded = false; _hasDraft = false; _undo.clear(); [_roll clear]; [_editorRoll clear];
     _loadedSourceId = _loadedSourceRevision = 0; _loadedSourceName = nil; _loadedSourceKind = nil;
     _activeSource.stringValue = @"使用中: 取り込み待機中";
     _apply.enabled = _plan.enabled = _originalButton.enabled =
@@ -370,7 +538,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   if (!_loaded) { _message.stringValue = @"先に原案を取り込んでください。"; return; }
   _draft = _current;
   int n = merlai_edit(_current.notes.data(), _current.count,
-    _current.end - _current.start, _instruction.stringValue.UTF8String,
+    _current.end - _current.start, _instruction.string.UTF8String,
     _draft.notes.data());
   if (n < 0) {
     _message.stringValue =
@@ -378,6 +546,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     [_roll setProposal:_current visible:NO]; return;
   }
   _draft.count = n; [_roll setProposal:_draft visible:YES];
+  [_editorRoll setOriginal:_original]; [_editorRoll setProposal:_draft visible:YES];
   _message.stringValue = [NSString stringWithFormat:
     @"プレビュー: 青 %u音 → オレンジ %d音。よければ適用してください。",
     _current.count, n];
@@ -414,6 +583,78 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     if (error) *error = [[NSString alloc] initWithData:diagnostic
       encoding:NSUTF8StringEncoding] ?: @"ModelBridgeが停止しました。";
     return nil;
+  }
+  return result;
+}
+- (void)setGenerationStage:(NSString *)stage message:(NSString *)message {
+  _generationStage = message.length ? message : stage;
+  if (!_generationStarted) _generationStarted = [NSDate date];
+  NSTimeInterval elapsed = -[_generationStarted timeIntervalSinceNow];
+  _message.stringValue = [NSString stringWithFormat:@"%@（%.1f秒）", _generationStage, elapsed];
+}
+- (void)startGenerationProgress {
+  _generationStarted = [NSDate date]; _generationStage = @"MIDIと指示を準備しています";
+  _cancelButton.hidden = NO; _builtinButton.hidden = YES;
+  [_generationTimer invalidate];
+  __weak MerlaiPhrasePanel *weakSelf = self;
+  _generationTimer = [NSTimer scheduledTimerWithTimeInterval:.25 repeats:YES block:^(NSTimer *timer) {
+    MerlaiPhrasePanel *panel = weakSelf;
+    if (panel && panel->_generationStarted)
+      [panel setGenerationStage:@"generating" message:panel->_generationStage];
+  }];
+}
+- (void)stopGenerationProgress {
+  [_generationTimer invalidate]; _generationTimer = nil; _generationStarted = nil;
+  _cancelButton.hidden = YES; _modelTask = nil;
+}
+- (void)cancelGeneration:(id)sender {
+  ++_generationRevision;
+  [_modelTask terminate]; [self stopGenerationProgress];
+  _generateButton.enabled = _plan.enabled = YES;
+  _message.stringValue = @"生成を中止しました。既存の候補は変更していません。";
+}
+- (NSDictionary *)runBridgeStreaming:(NSDictionary *)request error:(NSString **)error {
+  NSString *path = [self bridgePath];
+  if (![[NSFileManager defaultManager] isExecutableFileAtPath:path]) {
+    if (error) *error = @"ModelBridgeが見つかりません。"; return nil;
+  }
+  NSTask *task = [[NSTask alloc] init]; task.executableURL = [NSURL fileURLWithPath:path];
+  task.arguments = @[@"generate-stream"];
+  NSPipe *inPipe = [NSPipe pipe], *outPipe = [NSPipe pipe], *errPipe = [NSPipe pipe];
+  task.standardInput = inPipe; task.standardOutput = outPipe; task.standardError = errPipe;
+  NSError *launchError = nil;
+  if (![task launchAndReturnError:&launchError]) {
+    if (error) *error = launchError.localizedDescription; return nil;
+  }
+  dispatch_async(dispatch_get_main_queue(), ^{ self->_modelTask = task; });
+  NSData *body = [NSJSONSerialization dataWithJSONObject:request options:0 error:nil];
+  [inPipe.fileHandleForWriting writeData:body]; [inPipe.fileHandleForWriting closeFile];
+  NSMutableData *buffer = [NSMutableData data]; NSDictionary *result = nil;
+  while (true) {
+    NSData *chunk = [outPipe.fileHandleForReading availableData];
+    if (!chunk.length) break;
+    [buffer appendData:chunk];
+    while (true) {
+      const uint8_t *bytes = (const uint8_t *)buffer.bytes;
+      NSUInteger newline = NSNotFound;
+      for (NSUInteger i = 0; i < buffer.length; ++i) if (bytes[i] == '\n') { newline = i; break; }
+      if (newline == NSNotFound) break;
+      NSData *line = [buffer subdataWithRange:NSMakeRange(0, newline)];
+      [buffer replaceBytesInRange:NSMakeRange(0, newline + 1) withBytes:nullptr length:0];
+      NSDictionary *event = [NSJSONSerialization JSONObjectWithData:line options:0 error:nil];
+      if ([event[@"type"] isEqual:@"status"]) {
+        NSString *stage = event[@"stage"] ?: @"generating";
+        NSString *message = event[@"message"] ?: @"生成中";
+        dispatch_async(dispatch_get_main_queue(), ^{ [self setGenerationStage:stage message:message]; });
+      } else if ([event[@"type"] isEqual:@"result"]) result = event[@"result"];
+      else if ([event[@"type"] isEqual:@"error"] && error) *error = event[@"message"];
+    }
+  }
+  [task waitUntilExit];
+  if (!result && error && !*error) {
+    NSData *diagnostic = [errPipe.fileHandleForReading readDataToEndOfFile];
+    *error = [[NSString alloc] initWithData:diagnostic encoding:NSUTF8StringEncoding]
+      ?: @"モデル応答を読み取れませんでした。";
   }
   return result;
 }
@@ -486,7 +727,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     @"endpoint": _endpointField.stringValue ?: @"",
     @"payload": @{
       @"version": @1,
-      @"instruction": _instruction.stringValue ?: @"",
+      @"instruction": _instruction.string ?: @"",
       @"purpose": @[@"edit", @"bass", @"chords", @"counter_melody"][purpose],
       @"musicalContext": @{@"span": @(input.end - input.start),
         @"tempo": context.tempo > 0 ? @(context.tempo) : [NSNull null],
@@ -498,10 +739,9 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   };
 }
 - (int)generateWithBridge:(NSDictionary *)request output:(Phrase &)output
-                    error:(NSString **)error {
-  NSData *body = [NSJSONSerialization dataWithJSONObject:request options:0 error:nil];
-  NSData *data = [self runBridge:@[@"generate"] input:body error:error];
-  NSDictionary *response = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+                    error:(NSString **)error response:(NSDictionary **)fullResponse {
+  NSDictionary *response = [self runBridgeStreaming:request error:error];
+  if (fullResponse) *fullResponse = response;
   NSArray *notes = response[@"notes"];
   if (![notes isKindOfClass:NSArray.class] || !notes.count || notes.count > Capacity) return -1;
   double span = output.end - output.start;
@@ -517,6 +757,24 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     output.notes[i] = note;
   }
   return (int)notes.count;
+}
+- (void)showAssistantResponse:(NSDictionary *)response {
+  _assistantMessage.stringValue = response[@"message"] ?: @"";
+  for (NSView *view in [self.subviews copy]) if (view.tag >= 7100 && view.tag < 7103) [view removeFromSuperview];
+  _suggestions = [response[@"suggestions"] isKindOfClass:NSArray.class] ? response[@"suggestions"] : @[];
+  NSUInteger count = std::min<NSUInteger>(3, _suggestions.count);
+  for (NSUInteger i = 0; i < count; ++i) {
+    NSButton *button = [self button:_suggestions[i] action:@selector(useSuggestion:)
+                             frame:NSMakeRect(16 + i * 226, 8, 218, 24)];
+    button.tag = 7100 + i; button.font = [NSFont systemFontOfSize:10];
+    button.hidden = _tabs.selectedSegment == 1;
+  }
+}
+- (void)useSuggestion:(NSButton *)sender {
+  NSUInteger index = sender.tag - 7100;
+  if (index >= _suggestions.count) return;
+  _instruction.string = _suggestions[index];
+  [self.window makeFirstResponder:_instruction];
 }
 - (void)generateBuiltin:(id)sender {
   _forceBuiltinOnce = true;
@@ -535,7 +793,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   auto draft = std::make_shared<Phrase>(_current);
   BOOL forceBuiltin = _forceBuiltinOnce; _forceBuiltinOnce = false;
   NSDictionary *provider = forceBuiltin ? nil : _providerPopup.selectedItem.representedObject;
-  NSString *instruction = [_instruction.stringValue copy];
+  NSString *instruction = [_instruction.string copy];
   if (provider && ![provider[@"available"] boolValue]) {
     _message.stringValue = provider[@"detail"] ?: @"選択したモデルは利用できません。"; return;
   }
@@ -550,11 +808,14 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   uint64_t revision = ++_generationRevision;
   _generateButton.enabled = _plan.enabled = NO;
   _builtinButton.hidden = YES;
-  _message.stringValue = @"候補を生成中です。再生を止めずにバックグラウンドで処理します。";
+  if (request) [self startGenerationProgress];
+  else _message.stringValue = @"内蔵ルールで候補を生成しています。";
   __weak MerlaiPhrasePanel *weakSelf = self;
   dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
     NSString *bridgeError = nil;
-    int n = request ? [weakSelf generateWithBridge:request output:*draft error:&bridgeError] : -1;
+    NSDictionary *modelResponse = nil;
+    int n = request ? [weakSelf generateWithBridge:request output:*draft error:&bridgeError
+                                          response:&modelResponse] : -1;
     if (!request) {
       if (purpose == 0) n = merlai_edit(input.notes.data(), input.count,
         input.end - input.start, instruction.UTF8String,
@@ -566,6 +827,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     dispatch_async(dispatch_get_main_queue(), ^{
       MerlaiPhrasePanel *panel = weakSelf;
       if (!panel || revision != panel->_generationRevision) return;
+      if (request) [panel stopGenerationProgress];
       panel->_generateButton.enabled = panel->_plan.enabled = YES;
       if (n < 0) {
         if (request) {
@@ -583,11 +845,14 @@ static NSString *PhraseSummary(const Phrase &phrase) {
       panel->_draft = *draft;
       panel->_hasDraft = true;
       [panel->_roll setProposal:panel->_draft visible:YES];
+      [panel->_editorRoll setOriginal:panel->_original];
+      [panel->_editorRoll setProposal:panel->_draft visible:YES];
       NSString *purposeName = @[@"編集", @"ベース", @"コード", @"対旋律"][purpose];
       panel->_message.stringValue = [NSString stringWithFormat:
         @"%@候補: 青 %u音 → オレンジ %d音。適用前のプレビューです。",
         purposeName, input.count, n];
       panel->_builtinButton.hidden = YES;
+      if (modelResponse) [panel showAssistantResponse:modelResponse];
       panel->_apply.enabled = panel->_revisedButton.enabled = YES;
     });
   });
@@ -605,7 +870,8 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   if (![self submit:_draft]) return;
   _undo.push_back(_current); _current = _draft; _hasDraft = false; _apply.enabled = NO;
   _revisedButton.enabled = _undoButton.enabled = YES;
-  [_roll setProposal:_current visible:YES]; [self setMode:YES];
+  [_roll setProposal:_current visible:YES]; [_editorRoll setProposal:_current visible:YES];
+  [self setMode:YES];
 }
 - (void)undoEdit:(id)sender {
   if (_undo.empty() || ![self submit:_undo.back()]) return;
@@ -613,6 +879,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   _hasDraft = false;
   _undoButton.enabled = _revisedButton.enabled = !_undo.empty();
   [_roll setProposal:_current visible:!_undo.empty()];
+  [_editorRoll setProposal:_current visible:!_undo.empty()];
   [self setMode:!_undo.empty()];
 }
 @end

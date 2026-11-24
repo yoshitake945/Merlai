@@ -1,5 +1,14 @@
 import Foundation
 
+var activeProviderProcess: Process?
+signal(SIGTERM, SIG_IGN)
+let terminationSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .global())
+terminationSource.setEventHandler {
+  activeProviderProcess?.terminate()
+  exit(143)
+}
+terminationSource.resume()
+
 struct Failure: LocalizedError {
   let message: String
   var errorDescription: String? { message }
@@ -41,6 +50,14 @@ struct GenerateRequest: Codable {
 }
 struct GenerationResponse: Codable {
   let notes: [Note]
+  let message: String
+  let suggestions: [String]
+}
+struct StreamEvent: Codable {
+  let type: String
+  let stage: String?
+  let message: String?
+  let result: GenerationResponse?
 }
 
 func executable(_ name: String) -> String? {
@@ -142,6 +159,8 @@ func run(_ path: String, _ arguments: [String], input: Data, timeout: TimeInterv
   process.standardInput = stdin
   process.standardOutput = stdout
   process.standardError = stderr
+  activeProviderProcess = process
+  defer { activeProviderProcess = nil }
   try process.run()
   stdin.fileHandleForWriting.write(input)
   try stdin.fileHandleForWriting.close()
@@ -181,7 +200,7 @@ func diagnosticSummary(_ diagnostic: String) -> String {
   return "モデルの実行に失敗しました。再試行するか、内蔵ルールを選んでください。"
 }
 
-let schema = #"{"type":"object","properties":{"notes":{"type":"array","items":{"type":"object","properties":{"start":{"type":"number"},"end":{"type":"number"},"pitch":{"type":"integer"},"velocity":{"type":"integer"},"channel":{"type":"integer"}},"required":["start","end","pitch","velocity","channel"],"additionalProperties":false}}},"required":["notes"],"additionalProperties":false}"#
+let schema = #"{"type":"object","properties":{"notes":{"type":"array","items":{"type":"object","properties":{"start":{"type":"number"},"end":{"type":"number"},"pitch":{"type":"integer"},"velocity":{"type":"integer"},"channel":{"type":"integer"}},"required":["start","end","pitch","velocity","channel"],"additionalProperties":false}},"message":{"type":"string"},"suggestions":{"type":"array","items":{"type":"string"}}},"required":["notes","message","suggestions"],"additionalProperties":false}"#
 
 func validateStrictSchema(_ value: Any) -> Bool {
   guard let object = value as? [String: Any] else { return true }
@@ -197,7 +216,7 @@ func selfTest() throws {
   let value = try JSONSerialization.jsonObject(with: Data(schema.utf8))
   guard validateStrictSchema(value) else { throw Failure(message: "Model schema is not strict") }
   _ = try JSONDecoder().decode(GenerationResponse.self, from:
-    Data(#"{"notes":[{"start":0,"end":0.5,"pitch":60,"velocity":80,"channel":0}]}"#.utf8))
+    Data(#"{"notes":[{"start":0,"end":0.5,"pitch":60,"velocity":80,"channel":0}],"message":"one octave up","suggestions":["shorten the ending"]}"#.utf8))
 }
 
 func prompt(_ payload: GenerationPayload) throws -> Data {
@@ -209,9 +228,10 @@ func prompt(_ payload: GenerationPayload) throws -> Data {
     "For bass, chords, or counter_melody, create that role using the source as musical context. Request:\n" + json).utf8)
 }
 
-func generate(_ request: GenerateRequest) throws -> GenerationResponse {
+func generate(_ request: GenerateRequest, progress: ((String, String) -> Void)? = nil) throws -> GenerationResponse {
   let input = try prompt(request.payload)
   let raw: Data
+  progress?("connecting", "\(request.providerId)へ接続しています")
   switch request.providerId {
   case "codex":
     guard let path = executable("codex") else { throw Failure(message: "codex が見つかりません") }
@@ -224,12 +244,14 @@ func generate(_ request: GenerateRequest) throws -> GenerationResponse {
       "--output-schema", schemaURL.path, "--output-last-message", outputURL.path]
     if !request.model.isEmpty { args += ["--model", request.model] }
     args.append("-")
+    progress?("generating", "CodexがMIDI候補を生成しています")
     _ = try run(path, args, input: input)
     raw = try Data(contentsOf: outputURL)
   case "claude":
     guard let path = executable("claude") else { throw Failure(message: "claude が見つかりません") }
     var args = ["--print", "--output-format", "json", "--json-schema", schema]
     if !request.model.isEmpty { args += ["--model", request.model] }
+    progress?("generating", "ClaudeがMIDI候補を生成しています")
     let envelope = try run(path, args, input: input)
     if let object = try JSONSerialization.jsonObject(with: envelope) as? [String: Any],
       let value = object["structured_output"] ?? object["result"] {
@@ -254,6 +276,7 @@ func generate(_ request: GenerateRequest) throws -> GenerationResponse {
       "response_format": ["type": "json_object"],
       "stream": false,
     ])
+    progress?("generating", "ローカルモデルがMIDI候補を生成しています")
     let envelope = try http(urlRequest, timeout: 120)
     let object = try JSONSerialization.jsonObject(with: envelope) as? [String: Any]
     guard let choices = object?["choices"] as? [[String: Any]],
@@ -262,7 +285,14 @@ func generate(_ request: GenerateRequest) throws -> GenerationResponse {
     else { throw Failure(message: "モデル応答を読み取れません") }
     raw = Data(content.utf8)
   }
+  progress?("validating", "モデル応答を検証しています")
   return try JSONDecoder().decode(GenerationResponse.self, from: raw)
+}
+
+func emit(_ event: StreamEvent) throws {
+  var data = try JSONEncoder().encode(event)
+  data.append(0x0a)
+  FileHandle.standardOutput.write(data)
 }
 
 do {
@@ -274,12 +304,23 @@ do {
   case "generate":
     let data = FileHandle.standardInput.readDataToEndOfFile()
     FileHandle.standardOutput.write(try JSONEncoder().encode(generate(JSONDecoder().decode(GenerateRequest.self, from: data))))
+  case "generate-stream":
+    let data = FileHandle.standardInput.readDataToEndOfFile()
+    let request = try JSONDecoder().decode(GenerateRequest.self, from: data)
+    try emit(StreamEvent(type: "status", stage: "preparing", message: "MIDIと指示を準備しています", result: nil))
+    let result = try generate(request) { stage, message in
+      try? emit(StreamEvent(type: "status", stage: stage, message: message, result: nil))
+    }
+    try emit(StreamEvent(type: "result", stage: "complete", message: result.message, result: result))
   case "self-test":
     try selfTest()
     FileHandle.standardOutput.write(Data("ModelBridge self-test passed\n".utf8))
   default: throw Failure(message: "usage: ModelBridge providers [endpoint] | generate")
   }
 } catch {
+  if CommandLine.arguments.dropFirst().first == "generate-stream" {
+    try? emit(StreamEvent(type: "error", stage: "failed", message: error.localizedDescription, result: nil))
+  }
   FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
   exit(1)
 }
