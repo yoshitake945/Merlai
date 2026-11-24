@@ -18,6 +18,11 @@ struct CaptureInfo {
   uint32_t count = 0;
   double start = 0, end = 0, position = 0;
 };
+struct MusicalContext {
+  double tempo = 0;
+  float numerator = 4;
+  uint32_t denominator = 4;
+};
 extern "C" int32_t merlai_edit(const Note *, size_t, double, const char *,
                                Note *);
 extern "C" int32_t merlai_generate(const Note *, size_t, double, uint32_t,
@@ -43,5 +48,6 @@ enum : unsigned {
   PlaybackMode,
   Status,
   CaptureProgress,
-  InstanceID
+  InstanceID,
+  CurrentMusicalContext
 };

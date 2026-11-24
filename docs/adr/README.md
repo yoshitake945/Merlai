@@ -8,6 +8,7 @@ ADRには、ある時点での背景、採用した方法、理由と制約を�
 | [0002　MIDIファイルとテイクによる受け渡し](0002-midi-takes.md) | 今回の変更で採用 |
 | [0003　Logicの音源トラックでフレーズを推敲する](0003-track-midi-fx.md) | 試作 |
 | [0004　別トラックを文脈にしたMIDI生成](0004-cross-track-context-generation.md) | 提案 |
+| [0005　Model BridgeでLogicとLLMを分離する](0005-model-bridge-and-data-boundary.md) | 採用 |
 
 ## 過去の設計資料
 
