@@ -15,6 +15,13 @@ swift_bin=$(swift build --package-path macos --build-system native -c release --
 clang++ -std=c++23 tests/midi-fx/midi_file.cpp macos/MidiFX/MidiFile.mm \
   -o target/merlai-midi-file-test
 target/merlai-midi-file-test
+clang++ -std=c++23 -DMERLAI_UI_TESTING -fobjc-arc -I"$sdk/include" \
+  tests/midi-fx/ui_host.mm macos/MidiFX/Editor.mm macos/MidiFX/Link.mm \
+  macos/MidiFX/MidiFile.mm target/release/libmerlai_phrase_edit.a \
+  -framework Cocoa -framework AudioUnit -framework AudioToolbox -framework CoreMIDI \
+  -framework CoreAudio -framework CoreFoundation -framework UniformTypeIdentifiers \
+  -o target/merlai-ui-host-test
+target/merlai-ui-host-test
 out=dist/MerlaiFX.component/Contents
 mkdir -p "$out/MacOS"
 cp macos/MidiFX/Info.plist "$out/"
