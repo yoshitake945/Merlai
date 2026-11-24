@@ -25,6 +25,9 @@ class MerlaiFX : public ausdk::AUBase {
   std::atomic<int> state{Idle};
   std::atomic<uint32_t> captureCount{0};
   std::atomic<double> captureStart{0}, captureEnd{0}, capturePosition{0};
+  std::atomic<double> currentTempo{0};
+  std::atomic<float> timeNumerator{4};
+  std::atomic<uint32_t> timeDenominator{4};
   const uint64_t instanceId;
   std::atomic<bool> pending{false}, wantEdit{false}, bypass{false};
   bool sounding[16][128]{};
@@ -148,6 +151,13 @@ public:
     bool clock = CallHostBeatAndTempo(&beat, &tempo) == noErr && tempo > 0 &&
                  CallHostTransportState(&playing, nullptr, nullptr, &cycling,
                                         &left, &right) == noErr;
+    if (tempo > 0) currentTempo.store(tempo, std::memory_order_relaxed);
+    Float32 numerator = 4; UInt32 denominator = 4;
+    if (CallHostMusicalTimeLocation(nullptr, &numerator, &denominator, nullptr) == noErr &&
+        numerator > 0 && denominator > 0) {
+      timeNumerator.store(numerator, std::memory_order_relaxed);
+      timeDenominator.store(denominator, std::memory_order_relaxed);
+    }
     double step = tempo / (60. * Output(0).GetStreamFormat().mSampleRate);
     bool loop =
         clock && playing && cycling && right - left > step * 2 && step > 0;
@@ -246,6 +256,9 @@ public:
     case InstanceID:
       size = sizeof(uint64_t);
       return noErr;
+    case CurrentMusicalContext:
+      size = sizeof(MusicalContext);
+      return noErr;
     case Submit:
       size = sizeof(Phrase);
       writable = true;
@@ -300,6 +313,13 @@ public:
     case InstanceID:
       *(uint64_t *)out = instanceId;
       return noErr;
+    case CurrentMusicalContext: {
+      auto *context = static_cast<MusicalContext *>(out);
+      context->tempo = currentTempo.load(std::memory_order_relaxed);
+      context->numerator = timeNumerator.load(std::memory_order_relaxed);
+      context->denominator = timeDenominator.load(std::memory_order_relaxed);
+      return noErr;
+    }
     case ReadPhrase:
       if (state != Ready)
         return kAudioUnitErr_CannotDoInCurrentContext;

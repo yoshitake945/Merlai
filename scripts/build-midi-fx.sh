@@ -9,9 +9,13 @@ if [[ ! -d "$sdk" ]]; then
 fi
 test "$(git -C "$sdk" rev-parse HEAD)" = "$revision"
 cargo build --release --locked -p merlai-phrase-edit
+swift build --package-path macos --build-system native -c release --product ModelBridge
+swift_bin=$(swift build --package-path macos --build-system native -c release --show-bin-path)
 out=dist/MerlaiFX.component/Contents
 mkdir -p "$out/MacOS"
 cp macos/MidiFX/Info.plist "$out/"
+cp "$swift_bin/ModelBridge" "$out/MacOS/"
+codesign --force --sign - "$out/MacOS/ModelBridge"
 clang++ -std=c++23 -O2 -mmacosx-version-min=14.0 -fobjc-arc -bundle -I"$sdk/include" \
   "$sdk"/src/AudioUnitSDK/*.cpp macos/MidiFX/*.mm target/release/libmerlai_phrase_edit.a \
   -framework Cocoa -framework CoreMIDI -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework Accelerate -framework CoreFoundation \
