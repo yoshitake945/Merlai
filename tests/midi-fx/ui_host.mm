@@ -24,7 +24,7 @@ int main() {
                 styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
     window.contentView = panel;
 
-    auto *prompt = (NSTextField *)find(panel, @"merlai.instruction");
+    auto *prompt = (NSTextView *)find(panel, @"merlai.instruction");
     auto *tabs = (NSSegmentedControl *)find(panel, @"merlai.tabs");
     NSView *generation = find(panel, @"merlai.generation");
     NSView *editor = find(panel, @"merlai.editor");
@@ -45,11 +45,15 @@ int main() {
       assert(control && [control acceptsFirstMouse:probe]);
     }
     assert([window makeFirstResponder:prompt]);
-    [prompt selectText:nil];
     id responder = window.firstResponder;
     assert([responder conformsToProtocol:@protocol(NSTextInputClient)]);
+    [prompt selectAll:nil];
+    [responder setMarkedText:@"すとりんぐすをついか" selectedRange:NSMakeRange(10, 0)
+            replacementRange:NSMakeRange(NSNotFound, 0)];
+    assert([responder hasMarkedText]);
     [responder insertText:@"ストリングスを追加" replacementRange:NSMakeRange(NSNotFound, 0)];
-    assert([prompt.stringValue isEqualToString:@"ストリングスを追加"]);
+    assert(![responder hasMarkedText]);
+    assert([prompt.string isEqualToString:@"ストリングスを追加"]);
 
     Phrase phrase{}; phrase.start = 12; phrase.end = 16; phrase.count = 2;
     phrase.notes[0] = {0, 1, 60, 90, 0};
@@ -77,11 +81,11 @@ int main() {
       [tabs sendAction:tabs.action to:tabs.target];
       assert(!generation.hidden && editor.hidden);
       assert([window makeFirstResponder:prompt]);
-      [prompt selectText:nil];
+      [prompt selectAll:nil];
       responder = window.firstResponder;
       NSString *value = [NSString stringWithFormat:@"指示-%d-strings", cycle];
       [responder insertText:value replacementRange:NSMakeRange(NSNotFound, 0)];
-      assert([prompt.stringValue isEqualToString:value]);
+      assert([prompt.string isEqualToString:value]);
       tabs.selectedSegment = 1;
       [tabs sendAction:tabs.action to:tabs.target];
       assert(generation.hidden && !editor.hidden && window.firstResponder == roll);

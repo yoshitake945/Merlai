@@ -77,13 +77,19 @@
 }
 @end
 
-@interface MerlaiPromptField : MerlaiTextField
+@interface MerlaiPromptTextView : NSTextView
+@property(nonatomic, copy) NSString *placeholderString;
 @end
-@implementation MerlaiPromptField
-- (BOOL)acceptsFirstResponder { return YES; }
-- (void)mouseDown:(NSEvent *)event {
-  [self.window makeFirstResponder:self];
-  [super mouseDown:event];
+@implementation MerlaiPromptTextView
+- (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
+- (void)drawRect:(NSRect)dirtyRect {
+  [super drawRect:dirtyRect];
+  if (self.string.length || !self.placeholderString.length) return;
+  NSDictionary *style = @{
+    NSFontAttributeName: self.font ?: [NSFont systemFontOfSize:13],
+    NSForegroundColorAttributeName: NSColor.placeholderTextColor,
+  };
+  [self.placeholderString drawAtPoint:NSMakePoint(5, 4) withAttributes:style];
 }
 @end
 
@@ -288,11 +294,11 @@ static NSString *PhraseSummary(const Phrase &phrase) {
 }
 @end
 
-@interface MerlaiPhrasePanel : NSView <MerlaiMIDIDragSource, NSTextFieldDelegate> {
+@interface MerlaiPhrasePanel : NSView <MerlaiMIDIDragSource, NSTextViewDelegate> {
   AudioUnit _unit;
   Phrase _original, _current, _draft;
   std::vector<Phrase> _undo;
-  MerlaiPromptField *_instruction;
+  MerlaiPromptTextView *_instruction;
   NSTextField *_message, *_captureSummary, *_activeSource, *_assistantMessage;
   NSTextField *_sourceName;
   NSTextField *_endpointField;
@@ -409,16 +415,27 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _roll.wantsLayer = YES; _roll.layer.cornerRadius = 5;
     _roll.layer.masksToBounds = YES; [_generationView addSubview:_roll];
     [self label:@"3  候補を生成、または文章で編集" frame:NSMakeRect(16, 246, 260, 22) size:13 bold:YES];
-    _instruction = [[MerlaiPromptField alloc] initWithFrame:NSMakeRect(16, 188, 355, 52)];
-    _instruction.stringValue = @"後半だけ音数を半分に。最後の音は残して";
+    NSScrollView *promptScroll = [[NSScrollView alloc]
+      initWithFrame:NSMakeRect(16, 188, 355, 52)];
+    promptScroll.borderType = NSBezelBorder;
+    promptScroll.hasVerticalScroller = YES;
+    promptScroll.drawsBackground = YES;
+    _instruction = [[MerlaiPromptTextView alloc]
+      initWithFrame:promptScroll.contentView.bounds];
+    _instruction.string = @"後半だけ音数を半分に。最後の音は残して";
     _instruction.font = [NSFont systemFontOfSize:13];
-    _instruction.cell.wraps = YES; _instruction.cell.scrollable = YES;
-    _instruction.usesSingleLineMode = NO;
+    _instruction.verticallyResizable = YES;
+    _instruction.horizontallyResizable = NO;
+    _instruction.autoresizingMask = NSViewWidthSizable;
+    _instruction.textContainer.widthTracksTextView = YES;
+    _instruction.textContainer.containerSize = NSMakeSize(
+      promptScroll.contentSize.width, CGFLOAT_MAX);
     _instruction.placeholderString = @"作曲・編集の指示を入力";
     _instruction.delegate = self;
     _instruction.accessibilityLabel = @"生成指示";
     _instruction.accessibilityIdentifier = @"merlai.instruction";
-    [_generationView addSubview:_instruction];
+    promptScroll.documentView = _instruction;
+    [_generationView addSubview:promptScroll];
     _plan = [self button:@"変更内容を確認" action:@selector(plan:)
                    frame:NSMakeRect(379, 208, 145, 30)];
     _plan.accessibilityIdentifier = @"merlai.plan";
@@ -512,8 +529,9 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _auditioningRevised = NO; [self updateAuditionButtons];
     self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     __weak MerlaiPhrasePanel *weak = self;
-    _timer = [NSTimer scheduledTimerWithTimeInterval:.12 repeats:YES
+    _timer = [NSTimer scheduledTimerWithTimeInterval:.25 repeats:YES
       block:^(NSTimer *t) { [weak poll]; }];
+    _timer.tolerance = .08;
     [self refreshProviders:nil];
   }
   return self;
@@ -524,14 +542,6 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   _generationView.hidden = editing;
   _editorView.hidden = !editing;
   if (editing) [self.window makeFirstResponder:_editorRoll];
-}
-- (BOOL)control:(NSControl *)control textView:(NSTextView *)textView
- doCommandBySelector:(SEL)selector {
-  if (control == _instruction && selector == @selector(insertNewline:)) {
-    [textView insertNewlineIgnoringFieldEditor:nil];
-    return YES;
-  }
-  return NO;
 }
 - (void)setExportEnabled:(BOOL)enabled confirmed:(BOOL)confirmed {
   _midiDragView.enabled = enabled;
@@ -631,6 +641,9 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   _sourcesSignature = signature;
 }
 - (void)poll {
+  // AppKit's input method runs on this same thread. Avoid remote Audio Unit
+  // property calls while the user is composing text, especially with an IME.
+  if (self.window.firstResponder == _instruction) return;
   [self refreshSources];
   CaptureInfo info{}; UInt32 size = sizeof(info);
   if (AudioUnitGetProperty(_unit, CaptureProgress, 0, 0, &info, &size) != noErr)
@@ -753,7 +766,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   if (!_loaded) { _message.stringValue = @"先に原案を取り込んでください。"; return; }
   _draft = _current;
   int n = merlai_edit(_current.notes.data(), _current.count,
-    _current.end - _current.start, _instruction.stringValue.UTF8String,
+    _current.end - _current.start, _instruction.string.UTF8String,
     _draft.notes.data());
   if (n < 0) {
     _message.stringValue =
@@ -943,7 +956,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     @"endpoint": _endpointField.stringValue ?: @"",
     @"payload": @{
       @"version": @1,
-      @"instruction": _instruction.stringValue ?: @"",
+      @"instruction": _instruction.string ?: @"",
       @"purpose": @[@"edit", @"bass", @"chords", @"counter_melody"][purpose],
       @"musicalContext": @{@"span": @(input.end - input.start),
         @"tempo": context.tempo > 0 ? @(context.tempo) : [NSNull null],
@@ -989,7 +1002,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
 - (void)useSuggestion:(NSButton *)sender {
   NSUInteger index = sender.tag - 7100;
   if (index >= _suggestions.count) return;
-  _instruction.stringValue = _suggestions[index];
+  _instruction.string = _suggestions[index];
   [self.window makeFirstResponder:_instruction];
 }
 - (void)generateBuiltin:(id)sender {
@@ -1011,7 +1024,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   auto draft = std::make_shared<Phrase>(_current);
   BOOL forceBuiltin = _forceBuiltinOnce; _forceBuiltinOnce = false;
   NSDictionary *provider = forceBuiltin ? nil : _providerPopup.selectedItem.representedObject;
-  NSString *instruction = [_instruction.stringValue copy];
+  NSString *instruction = [_instruction.string copy];
   if (provider && ![provider[@"available"] boolValue]) {
     _message.stringValue = provider[@"detail"] ?: @"選択したモデルは利用できません。"; return;
   }
