@@ -1,11 +1,60 @@
 #include "Phrase.h"
 #include "Link.h"
+#include "MidiFile.h"
 #import <AudioUnit/AUCocoaUIView.h>
 #import <Cocoa/Cocoa.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #include <algorithm>
 #include <cmath>
 #include <memory>
 #include <vector>
+
+@protocol MerlaiMIDIDragSource <NSObject>
+- (NSURL *)midiDragURL;
+@end
+
+@interface MerlaiMIDIDragView : NSView <NSDraggingSource>
+@property(nonatomic, weak) id<MerlaiMIDIDragSource> source;
+@property(nonatomic) BOOL enabled;
+@end
+
+@implementation MerlaiMIDIDragView
+- (BOOL)isFlipped { return YES; }
+- (void)setEnabled:(BOOL)enabled { _enabled = enabled; [self setNeedsDisplay:YES]; }
+- (void)drawRect:(NSRect)dirtyRect {
+  NSColor *fill = self.enabled
+    ? [NSColor colorWithRed:.16 green:.43 blue:.76 alpha:1]
+    : [NSColor colorWithWhite:.28 alpha:1];
+  [fill setFill];
+  [[NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds, .5, .5)
+                                    xRadius:6 yRadius:6] fill];
+  NSDictionary *style = @{NSFontAttributeName: [NSFont systemFontOfSize:12 weight:NSFontWeightSemibold],
+    NSForegroundColorAttributeName: self.enabled ? NSColor.whiteColor : NSColor.disabledControlTextColor};
+  NSString *text = @"↗ 候補をLogicへドラッグ";
+  NSSize size = [text sizeWithAttributes:style];
+  [text drawAtPoint:NSMakePoint((NSWidth(self.bounds) - size.width) / 2,
+                                (NSHeight(self.bounds) - size.height) / 2)
+      withAttributes:style];
+}
+- (void)resetCursorRects {
+  [self addCursorRect:self.bounds cursor:self.enabled ? NSCursor.openHandCursor : NSCursor.arrowCursor];
+}
+- (void)mouseDragged:(NSEvent *)event {
+  if (!self.enabled) return;
+  NSURL *url = [self.source midiDragURL];
+  if (!url) return;
+  NSPasteboardItem *item = [[NSPasteboardItem alloc] init];
+  [item setString:url.absoluteString forType:NSPasteboardTypeFileURL];
+  NSDraggingItem *drag = [[NSDraggingItem alloc] initWithPasteboardWriter:item];
+  NSImage *image = [NSWorkspace.sharedWorkspace iconForFile:url.path];
+  [drag setDraggingFrame:NSMakeRect(8, 0, 32, 32) contents:image];
+  [self beginDraggingSessionWithItems:@[drag] event:event source:self];
+}
+- (NSDragOperation)draggingSession:(NSDraggingSession *)session
+ sourceOperationMaskForDraggingContext:(NSDraggingContext)context {
+  return NSDragOperationCopy;
+}
+@end
 
 static NSString *BeatLabel(double beat) {
   NSInteger bar = (NSInteger)floor(beat / 4.0) + 1;
@@ -207,7 +256,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
 }
 @end
 
-@interface MerlaiPhrasePanel : NSView {
+@interface MerlaiPhrasePanel : NSView <MerlaiMIDIDragSource> {
   AudioUnit _unit;
   Phrase _original, _current, _draft;
   std::vector<Phrase> _undo;
@@ -219,6 +268,8 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   NSButton *_plan, *_generateButton, *_apply, *_originalButton, *_revisedButton, *_undoButton,
     *_builtinButton;
   NSButton *_cancelButton;
+  NSButton *_saveMIDIButton, *_showMIDIButton, *_editorRevisedButton, *_editorApplyButton;
+  MerlaiMIDIDragView *_midiDragView;
   NSProgressIndicator *_progress;
   MerlaiPianoRoll *_roll, *_editorRoll;
   NSView *_editorView;
@@ -236,6 +287,8 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   NSString *_loadedSourceName, *_loadedSourceKind;
   NSArray<NSDictionary *> *_providers;
   bool _loaded, _hasDraft, _forceBuiltinOnce;
+  NSURL *_lastMIDIURL;
+  BOOL _auditioningRevised;
 }
 - (instancetype)initWithUnit:(AudioUnit)unit;
 @end
@@ -266,7 +319,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     [self label:@"1  入力を選ぶ" frame:NSMakeRect(240, 590, 100, 20) size:12 bold:YES];
     [self label:@"2  取り込む" frame:NSMakeRect(345, 590, 90, 20) size:12 bold:YES];
     [self label:@"3  候補を作る" frame:NSMakeRect(440, 590, 105, 20) size:12 bold:YES];
-    [self label:@"4  比較・録音" frame:NSMakeRect(550, 590, 110, 20) size:12 bold:YES];
+    [self label:@"4  確定・配置" frame:NSMakeRect(550, 590, 110, 20) size:12 bold:YES];
     [self button:@"2  フレーズを取り込む" action:@selector(arm:)
            frame:NSMakeRect(16, 543, 185, 32)];
     _captureSummary = [self label:@"未取り込み — Logicで先にサイクルを指定"
@@ -325,7 +378,9 @@ static NSString *PhraseSummary(const Phrase &phrase) {
                              frame:NSMakeRect(16, 163, 112, 30)];
     _revisedButton = [self button:@"修正案を聴く" action:@selector(revised:)
                             frame:NSMakeRect(136, 163, 120, 30)];
-    _apply = [self button:@"修正案を適用" action:@selector(apply:)
+    _originalButton.buttonType = NSButtonTypeToggle;
+    _revisedButton.buttonType = NSButtonTypeToggle;
+    _apply = [self button:@"候補を確定" action:@selector(apply:)
                     frame:NSMakeRect(264, 163, 190, 30)];
     _undoButton = [self button:@"一手戻す" action:@selector(undoEdit:)
                          frame:NSMakeRect(462, 163, 100, 30)];
@@ -335,6 +390,13 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _cancelButton = [self button:@"生成を中止" action:@selector(cancelGeneration:)
                            frame:NSMakeRect(570, 163, 126, 30)];
     _cancelButton.hidden = YES;
+    _midiDragView = [[MerlaiMIDIDragView alloc] initWithFrame:NSMakeRect(16, 126, 240, 30)];
+    _midiDragView.source = self; _midiDragView.enabled = NO; [self addSubview:_midiDragView];
+    _saveMIDIButton = [self button:@"MIDIを保存" action:@selector(saveMIDI:)
+                                 frame:NSMakeRect(264, 126, 112, 30)];
+    _showMIDIButton = [self button:@"Finderで表示" action:@selector(showMIDI:)
+                                 frame:NSMakeRect(384, 126, 120, 30)];
+    _saveMIDIButton.enabled = _showMIDIButton.enabled = NO;
     _apply.enabled = _plan.enabled = _originalButton.enabled =
         _revisedButton.enabled = _undoButton.enabled = NO;
     _message = [NSTextField wrappingLabelWithString:
@@ -365,17 +427,22 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _editorRoll.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [_editorRoll setEditable:YES target:self action:@selector(editorChanged:)];
     [_editorView addSubview:_editorRoll];
+    _editorRevisedButton = [NSButton buttonWithTitle:@"修正案を聴く" target:self
+                                               action:@selector(revised:)];
+    _editorRevisedButton.buttonType = NSButtonTypeToggle;
+    _editorApplyButton = [NSButton buttonWithTitle:@"候補を確定" target:self action:@selector(apply:)];
     NSArray *editorButtons = @[
       [NSButton buttonWithTitle:@"原案から編集用コピー" target:self action:@selector(beginManualEdit:)],
       [NSButton buttonWithTitle:@"編集を一手戻す" target:self action:@selector(undoManualEdit:)],
-      [NSButton buttonWithTitle:@"修正案を聴く" target:self action:@selector(revised:)],
-      [NSButton buttonWithTitle:@"修正案を適用" target:self action:@selector(apply:)],
+      _editorRevisedButton, _editorApplyButton,
     ];
     CGFloat editorX = 16;
     for (NSButton *button in editorButtons) {
       button.frame = NSMakeRect(editorX, 28, 170, 32); button.bezelStyle = NSBezelStyleRounded;
       [_editorView addSubview:button]; editorX += 180;
     }
+    _editorRevisedButton.enabled = _editorApplyButton.enabled = NO;
+    _auditioningRevised = NO; [self updateAuditionButtons];
     self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     __weak MerlaiPhrasePanel *weak = self;
     _timer = [NSTimer scheduledTimerWithTimeInterval:.12 repeats:YES
@@ -390,16 +457,74 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   for (NSView *view in self.subviews) if (view.tag >= 7100 && view.tag < 7103) view.hidden = editing;
   _editorView.hidden = !editing;
 }
+- (void)setExportEnabled:(BOOL)enabled confirmed:(BOOL)confirmed {
+  _midiDragView.enabled = enabled;
+  _saveMIDIButton.enabled = _showMIDIButton.enabled = enabled;
+  _apply.title = confirmed ? @"✓ 候補を確定済み" : @"候補を確定";
+  _editorApplyButton.title = _apply.title;
+  _editorApplyButton.enabled = _apply.enabled;
+  if (!enabled) _lastMIDIURL = nil;
+}
+- (void)updateAuditionButtons {
+  _originalButton.state = _auditioningRevised ? NSControlStateValueOff : NSControlStateValueOn;
+  _revisedButton.state = _auditioningRevised ? NSControlStateValueOn : NSControlStateValueOff;
+  _editorRevisedButton.state = _revisedButton.state;
+  _originalButton.title = _auditioningRevised ? @"原案を聴く" : @"✓ 原案を試聴中";
+  _revisedButton.title = _auditioningRevised ? @"✓ 候補を試聴中" : @"候補を聴く";
+  _editorRevisedButton.title = _revisedButton.title;
+}
+- (NSURL *)writeCandidateToURL:(NSURL *)url error:(NSError **)error {
+  std::vector<uint8_t> bytes = merlai_midi_file(_current);
+  NSData *data = [NSData dataWithBytes:bytes.data() length:bytes.size()];
+  if (![data writeToURL:url options:NSDataWritingAtomic error:error]) return nil;
+  _lastMIDIURL = url;
+  return url;
+}
+- (NSURL *)midiDragURL {
+  NSString *name = [NSString stringWithFormat:@"Merlai-%llu-candidate.mid",
+    (unsigned long long)_instanceId];
+  NSURL *url = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:name]];
+  NSError *error = nil;
+  if (![self writeCandidateToURL:url error:&error]) {
+    _message.stringValue = [NSString stringWithFormat:@"MIDIを書き出せませんでした: %@",
+      error.localizedDescription];
+    return nil;
+  }
+  _message.stringValue = @"ドラッグ中です。Logicの目的トラック・目的小節へドロップしてください。";
+  return url;
+}
+- (void)saveMIDI:(id)sender {
+  NSSavePanel *panel = [NSSavePanel savePanel];
+  panel.nameFieldStringValue = @"Merlai Candidate.mid";
+  panel.allowedContentTypes = @[UTTypeMIDI];
+  [panel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse response) {
+    if (response != NSModalResponseOK) return;
+    NSError *error = nil;
+    if ([self writeCandidateToURL:panel.URL error:&error])
+      self->_message.stringValue = @"MIDIファイルを保存しました。";
+    else
+      self->_message.stringValue = [NSString stringWithFormat:@"MIDIを保存できませんでした: %@",
+        error.localizedDescription];
+  }];
+}
+- (void)showMIDI:(id)sender {
+  NSURL *url = _lastMIDIURL ?: [self midiDragURL];
+  if (url) [NSWorkspace.sharedWorkspace activateFileViewerSelectingURLs:@[url]];
+}
 - (void)beginManualEdit:(id)sender {
   if (!_loaded) { _message.stringValue = @"先にフレーズを取り込んでください。"; return; }
   _draft = _current; _hasDraft = true;
   [_roll setProposal:_draft visible:YES]; [_editorRoll setOriginal:_original];
   [_editorRoll setProposal:_draft visible:YES];
   _apply.enabled = _revisedButton.enabled = YES;
+  _editorApplyButton.enabled = _editorRevisedButton.enabled = YES;
+  [self setExportEnabled:NO confirmed:NO];
 }
 - (void)editorChanged:(MerlaiPianoRoll *)sender {
   _draft = [sender proposal]; _hasDraft = true;
   [_roll setProposal:_draft visible:YES]; _apply.enabled = _revisedButton.enabled = YES;
+  _editorApplyButton.enabled = _editorRevisedButton.enabled = YES;
+  [self setExportEnabled:NO confirmed:NO];
 }
 - (void)undoManualEdit:(id)sender { [_editorRoll undoCandidate]; }
 - (void)dealloc { [_timer invalidate]; [_generationTimer invalidate]; [_modelTask terminate]; }
@@ -464,6 +589,10 @@ static NSString *PhraseSummary(const Phrase &phrase) {
       merlai_link_publish(_instanceId, _original);
       _sourcesSignature = 0;
       _plan.enabled = _originalButton.enabled = YES;
+      _revisedButton.enabled = _undoButton.enabled = _apply.enabled = NO;
+      _editorRevisedButton.enabled = _editorApplyButton.enabled = NO;
+      [self setExportEnabled:NO confirmed:NO];
+      _auditioningRevised = NO; [self updateAuditionButtons];
       _message.stringValue =
         @"取り込み完了。青い原案を確認し、変更指示を書いて「変更内容を確認」を押してください。";
     }
@@ -504,6 +633,9 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     (unsigned long long)_loadedSourceRevision];
   _plan.enabled = _originalButton.enabled = YES;
   _revisedButton.enabled = _undoButton.enabled = _apply.enabled = NO;
+  _editorRevisedButton.enabled = _editorApplyButton.enabled = NO;
+  [self setExportEnabled:NO confirmed:NO];
+  _auditioningRevised = NO; [self updateAuditionButtons];
   _message.stringValue = @"別トラックの入力を読み込みました。生成目的を選び「候補を生成」を押してください。";
 }
 - (void)arm:(id)sender {
@@ -515,6 +647,9 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _activeSource.stringValue = @"使用中: 取り込み待機中";
     _apply.enabled = _plan.enabled = _originalButton.enabled =
       _revisedButton.enabled = _undoButton.enabled = NO;
+    _editorRevisedButton.enabled = _editorApplyButton.enabled = NO;
+    [self setExportEnabled:NO confirmed:NO];
+    _auditioningRevised = NO; [self updateAuditionButtons];
     _captureSummary.stringValue = @"待機中 — 再生位置をサイクル先頭へ移動して再生";
     _message.stringValue = @"取り込み待機中です。Logicをサイクル先頭から再生してください。";
   }
@@ -522,6 +657,8 @@ static NSString *PhraseSummary(const Phrase &phrase) {
 - (void)setMode:(BOOL)revised {
   UInt32 value = revised;
   AudioUnitSetProperty(_unit, PlaybackMode, 0, 0, &value, sizeof(value));
+  _auditioningRevised = revised;
+  [self updateAuditionButtons];
   _message.stringValue = revised
     ? @"修正案を選択中。次のサイクル先頭から切り替わります。"
     : @"原案を選択中。次のサイクル先頭から切り替わります。";
@@ -535,6 +672,8 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   UInt32 originalMode = 0;
   AudioUnitSetProperty(_unit, PlaybackMode, 0, 0, &originalMode, sizeof(originalMode));
   _apply.enabled = _revisedButton.enabled = NO; _hasDraft = false;
+  _editorApplyButton.enabled = _editorRevisedButton.enabled = NO;
+  [self setExportEnabled:NO confirmed:NO];
   if (!_loaded) { _message.stringValue = @"先に原案を取り込んでください。"; return; }
   _draft = _current;
   int n = merlai_edit(_current.notes.data(), _current.count,
@@ -548,9 +687,10 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   _draft.count = n; [_roll setProposal:_draft visible:YES];
   [_editorRoll setOriginal:_original]; [_editorRoll setProposal:_draft visible:YES];
   _message.stringValue = [NSString stringWithFormat:
-    @"プレビュー: 青 %u音 → オレンジ %d音。よければ適用してください。",
+    @"プレビュー: 青 %u音 → オレンジ %d音。よければ候補を確定してください。",
     _current.count, n];
   _hasDraft = true; _apply.enabled = _revisedButton.enabled = YES;
+  _editorApplyButton.enabled = _editorRevisedButton.enabled = YES;
 }
 - (NSString *)bridgePath {
   CFBundleRef bundle = CFBundleGetBundleWithIdentifier(
@@ -784,6 +924,8 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   UInt32 originalMode = 0;
   AudioUnitSetProperty(_unit, PlaybackMode, 0, 0, &originalMode, sizeof(originalMode));
   _apply.enabled = _revisedButton.enabled = NO; _hasDraft = false;
+  _editorApplyButton.enabled = _editorRevisedButton.enabled = NO;
+  [self setExportEnabled:NO confirmed:NO];
   if (!_loaded) {
     _message.stringValue = @"先にこのトラックを取り込むか、別トラックの入力を読み込んでください。";
     return;
@@ -844,6 +986,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
       }
       panel->_draft = *draft;
       panel->_hasDraft = true;
+      [panel setExportEnabled:NO confirmed:NO];
       [panel->_roll setProposal:panel->_draft visible:YES];
       [panel->_editorRoll setOriginal:panel->_original];
       [panel->_editorRoll setProposal:panel->_draft visible:YES];
@@ -854,6 +997,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
       panel->_builtinButton.hidden = YES;
       if (modelResponse) [panel showAssistantResponse:modelResponse];
       panel->_apply.enabled = panel->_revisedButton.enabled = YES;
+      panel->_editorApplyButton.enabled = panel->_editorRevisedButton.enabled = YES;
     });
   });
 }
@@ -870,6 +1014,8 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   if (![self submit:_draft]) return;
   _undo.push_back(_current); _current = _draft; _hasDraft = false; _apply.enabled = NO;
   _revisedButton.enabled = _undoButton.enabled = YES;
+  _editorApplyButton.enabled = NO; _editorRevisedButton.enabled = YES;
+  [self setExportEnabled:YES confirmed:YES];
   [_roll setProposal:_current visible:YES]; [_editorRoll setProposal:_current visible:YES];
   [self setMode:YES];
 }
@@ -878,8 +1024,10 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   _current = _undo.back(); _undo.pop_back(); _apply.enabled = NO;
   _hasDraft = false;
   _undoButton.enabled = _revisedButton.enabled = !_undo.empty();
+  _editorRevisedButton.enabled = _revisedButton.enabled;
   [_roll setProposal:_current visible:!_undo.empty()];
   [_editorRoll setProposal:_current visible:!_undo.empty()];
+  [self setExportEnabled:YES confirmed:YES];
   [self setMode:!_undo.empty()];
 }
 @end

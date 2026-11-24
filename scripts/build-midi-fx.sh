@@ -12,6 +12,9 @@ cargo build --release --locked -p merlai-phrase-edit
 swift build --package-path macos --build-system native -c release --product ModelBridge
 swift_bin=$(swift build --package-path macos --build-system native -c release --show-bin-path)
 "$swift_bin/ModelBridge" self-test
+clang++ -std=c++23 tests/midi-fx/midi_file.cpp macos/MidiFX/MidiFile.mm \
+  -o target/merlai-midi-file-test
+target/merlai-midi-file-test
 out=dist/MerlaiFX.component/Contents
 mkdir -p "$out/MacOS"
 cp macos/MidiFX/Info.plist "$out/"
@@ -19,7 +22,7 @@ cp "$swift_bin/ModelBridge" "$out/MacOS/"
 codesign --force --sign - "$out/MacOS/ModelBridge"
 clang++ -std=c++23 -O2 -mmacosx-version-min=14.0 -fobjc-arc -bundle -I"$sdk/include" \
   "$sdk"/src/AudioUnitSDK/*.cpp macos/MidiFX/*.mm target/release/libmerlai_phrase_edit.a \
-  -framework Cocoa -framework CoreMIDI -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework Accelerate -framework CoreFoundation \
+  -framework Cocoa -framework CoreMIDI -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework Accelerate -framework CoreFoundation -framework UniformTypeIdentifiers \
   -o "$out/MacOS/MerlaiFX"
 codesign --force --sign - dist/MerlaiFX.component
 codesign --verify --strict dist/MerlaiFX.component
