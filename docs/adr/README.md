@@ -9,6 +9,7 @@ ADRには、ある時点での背景、採用した方法、理由と制約を�
 | [0003　Logicの音源トラックでフレーズを推敲する](0003-track-midi-fx.md) | 試作 |
 | [0004　別トラックを文脈にしたMIDI生成](0004-cross-track-context-generation.md) | 提案 |
 | [0005　Model BridgeでLogicとLLMを分離する](0005-model-bridge-and-data-boundary.md) | 採用 |
+| [0006　音源の音色特徴は非破壊Analyzerで取得する](0006-timbre-analysis-boundary.md) | 提案 |
 
 ## 過去の設計資料
 
