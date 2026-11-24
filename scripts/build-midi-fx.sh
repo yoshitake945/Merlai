@@ -11,6 +11,7 @@ test "$(git -C "$sdk" rev-parse HEAD)" = "$revision"
 cargo build --release --locked -p merlai-phrase-edit
 swift build --package-path macos --build-system native -c release --product ModelBridge
 swift_bin=$(swift build --package-path macos --build-system native -c release --show-bin-path)
+"$swift_bin/ModelBridge" self-test
 out=dist/MerlaiFX.component/Contents
 mkdir -p "$out/MacOS"
 cp macos/MidiFX/Info.plist "$out/"

@@ -147,9 +147,10 @@ fn edit(input: &[Note], span: f64, text: &str) -> Result<Vec<Note>, ()> {
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GenerationPurpose {
-    Bass = 0,
-    Chords = 1,
-    CounterMelody = 2,
+    Edit = 0,
+    Bass = 1,
+    Chords = 2,
+    CounterMelody = 3,
 }
 
 /// Optional non-realtime generator inserted after the captured phrase has
@@ -267,6 +268,7 @@ fn generate(input: &[Note], span: f64, purpose: GenerationPurpose) -> Result<Vec
     let mut sorted = input.to_vec();
     sorted.sort_by(|a, b| a.start.total_cmp(&b.start).then(a.pitch.cmp(&b.pitch)));
     let generated = match purpose {
+        GenerationPurpose::Edit => sorted,
         GenerationPurpose::Bass => {
             let mut result = Vec::new();
             let analyzed_drums = sorted.iter().all(|note| {
@@ -426,9 +428,10 @@ pub unsafe extern "C" fn merlai_generate(
         return -1;
     }
     let purpose = match purpose {
-        0 => GenerationPurpose::Bass,
-        1 => GenerationPurpose::Chords,
-        2 => GenerationPurpose::CounterMelody,
+        0 => GenerationPurpose::Edit,
+        1 => GenerationPurpose::Bass,
+        2 => GenerationPurpose::Chords,
+        3 => GenerationPurpose::CounterMelody,
         _ => return -1,
     };
     match generate_candidate(
@@ -520,6 +523,10 @@ mod tests {
             .iter()
             .zip(notes.iter().step_by(2))
             .all(|(a, b)| a.pitch < b.pitch));
+        assert_eq!(
+            generate(&notes, 4., GenerationPurpose::Edit).unwrap(),
+            notes
+        );
 
         let drum_onsets = [
             Note {

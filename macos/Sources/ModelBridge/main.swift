@@ -24,6 +24,9 @@ struct MusicalContext: Codable {
   let tempo: Double?
   let timeSignature: String?
   let source: String?
+  let sourceId: UInt64?
+  let sourceRevision: UInt64?
+  let sourceKind: String?
 }
 struct GenerationPayload: Codable {
   let version: Int
@@ -38,8 +41,6 @@ struct GenerateRequest: Codable {
 }
 struct GenerationResponse: Codable {
   let notes: [Note]
-  let explanation: String?
-  let warnings: [String]?
 }
 
 func executable(_ name: String) -> String? {
@@ -152,18 +153,60 @@ func run(_ path: String, _ arguments: [String], input: Data, timeout: TimeInterv
   let output = try Data(contentsOf: outputURL)
   guard process.terminationStatus == 0 else {
     let message = (try? String(contentsOf: errorURL, encoding: .utf8)) ?? ""
-    throw Failure(message: message.isEmpty ? "Model provider failed" : message)
+    throw Failure(message: diagnosticSummary(message))
   }
   return output
 }
 
-let schema = #"{"type":"object","properties":{"notes":{"type":"array","items":{"type":"object","properties":{"start":{"type":"number"},"end":{"type":"number"},"pitch":{"type":"integer"},"velocity":{"type":"integer"},"channel":{"type":"integer"}},"required":["start","end","pitch","velocity","channel"],"additionalProperties":false}},"explanation":{"type":"string"},"warnings":{"type":"array","items":{"type":"string"}}},"required":["notes"],"additionalProperties":false}"#
+func diagnosticSummary(_ diagnostic: String) -> String {
+  if diagnostic.contains("invalid_json_schema") { return "モデルが出力形式を拒否しました。Merlaiを更新してください。" }
+  if diagnostic.localizedCaseInsensitiveContains("login") ||
+    diagnostic.localizedCaseInsensitiveContains("unauthorized") || diagnostic.contains("401") {
+    return "モデルへログインできていません。CLIのログイン状態を確認してください。"
+  }
+  if diagnostic.localizedCaseInsensitiveContains("timed out") {
+    return "モデルの応答がタイムアウトしました。再試行してください。"
+  }
+  let errors = diagnostic.split(separator: "\n").map(String.init)
+    .filter { $0.hasPrefix("ERROR:") }
+  if let last = errors.last {
+    let value = String(last.dropFirst("ERROR:".count)).trimmingCharacters(in: .whitespaces)
+    if let data = value.data(using: .utf8),
+      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let error = object["error"] as? [String: Any], let message = error["message"] as? String {
+      return String(message.prefix(300))
+    }
+    return String(value.prefix(300))
+  }
+  return "モデルの実行に失敗しました。再試行するか、内蔵ルールを選んでください。"
+}
+
+let schema = #"{"type":"object","properties":{"notes":{"type":"array","items":{"type":"object","properties":{"start":{"type":"number"},"end":{"type":"number"},"pitch":{"type":"integer"},"velocity":{"type":"integer"},"channel":{"type":"integer"}},"required":["start","end","pitch","velocity","channel"],"additionalProperties":false}}},"required":["notes"],"additionalProperties":false}"#
+
+func validateStrictSchema(_ value: Any) -> Bool {
+  guard let object = value as? [String: Any] else { return true }
+  if let properties = object["properties"] as? [String: Any] {
+    guard Set(object["required"] as? [String] ?? []) == Set(properties.keys) else { return false }
+    if !properties.values.allSatisfy(validateStrictSchema) { return false }
+  }
+  if let items = object["items"], !validateStrictSchema(items) { return false }
+  return true
+}
+
+func selfTest() throws {
+  let value = try JSONSerialization.jsonObject(with: Data(schema.utf8))
+  guard validateStrictSchema(value) else { throw Failure(message: "Model schema is not strict") }
+  _ = try JSONDecoder().decode(GenerationResponse.self, from:
+    Data(#"{"notes":[{"start":0,"end":0.5,"pitch":60,"velocity":80,"channel":0}]}"#.utf8))
+}
 
 func prompt(_ payload: GenerationPayload) throws -> Data {
   let data = try JSONEncoder().encode(payload)
   let json = String(decoding: data, as: UTF8.self)
   return Data(("You are a MIDI phrase editor. Return only JSON matching the supplied schema. " +
-    "Keep every note inside musicalContext.span and MIDI ranges. Request:\n" + json).utf8)
+    "Keep every note inside musicalContext.span and MIDI ranges. " +
+    "For edit, preserve the source unless the instruction requests a change. " +
+    "For bass, chords, or counter_melody, create that role using the source as musical context. Request:\n" + json).utf8)
 }
 
 func generate(_ request: GenerateRequest) throws -> GenerationResponse {
@@ -231,6 +274,9 @@ do {
   case "generate":
     let data = FileHandle.standardInput.readDataToEndOfFile()
     FileHandle.standardOutput.write(try JSONEncoder().encode(generate(JSONDecoder().decode(GenerateRequest.self, from: data))))
+  case "self-test":
+    try selfTest()
+    FileHandle.standardOutput.write(Data("ModelBridge self-test passed\n".utf8))
   default: throw Failure(message: "usage: ModelBridge providers [endpoint] | generate")
   }
 } catch {
