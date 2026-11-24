@@ -12,6 +12,21 @@ static NSString *BeatLabel(double beat) {
   NSInteger within = (NSInteger)floor(fmod(std::max(0.0, beat), 4.0)) + 1;
   return [NSString stringWithFormat:@"%ld.%ld", (long)bar, (long)within];
 }
+static NSString *NoteLabel(uint8_t pitch) {
+  static NSArray<NSString *> *names = @[@"C", @"C♯", @"D", @"E♭", @"E", @"F",
+    @"F♯", @"G", @"A♭", @"A", @"B♭", @"B"];
+  return [NSString stringWithFormat:@"%@%d", names[pitch % 12], pitch / 12 - 1];
+}
+static NSString *PhraseSummary(const Phrase &phrase) {
+  if (!phrase.count) return @"0音";
+  uint8_t low = 127, high = 0;
+  for (uint32_t i = 0; i < phrase.count; ++i) {
+    low = std::min(low, phrase.notes[i].pitch);
+    high = std::max(high, phrase.notes[i].pitch);
+  }
+  return [NSString stringWithFormat:@"%u音・%@〜%@", phrase.count,
+    NoteLabel(low), NoteLabel(high)];
+}
 
 @interface MerlaiPianoRoll : NSView {
   Phrase _original, _proposal;
@@ -33,13 +48,9 @@ static NSString *BeatLabel(double beat) {
 - (void)clear {
   _hasOriginal = _hasProposal = NO; [self setNeedsDisplay:YES];
 }
-- (void)drawPhrase:(const Phrase &)p rect:(NSRect)r color:(NSColor *)color {
+- (void)drawPhrase:(const Phrase &)p rect:(NSRect)r color:(NSColor *)color
+                 low:(uint8_t)low high:(uint8_t)high {
   if (!p.count || p.end <= p.start) return;
-  uint8_t low = 127, high = 0;
-  for (uint32_t i = 0; i < p.count; ++i) {
-    low = std::min(low, p.notes[i].pitch);
-    high = std::max(high, p.notes[i].pitch);
-  }
   double duration = p.end - p.start, pitchSpan = std::max<int>(5, high - low + 1);
   [color setFill];
   for (uint32_t i = 0; i < p.count; ++i) {
@@ -74,12 +85,22 @@ static NSString *BeatLabel(double beat) {
                                 toPoint:NSMakePoint(x, NSMaxY(lane))];
     }
   }
+  uint8_t low = 127, high = 0;
+  auto include = [&](const Phrase &phrase, BOOL present) {
+    if (!present) return;
+    for (uint32_t i = 0; i < phrase.count; ++i) {
+      low = std::min(low, phrase.notes[i].pitch);
+      high = std::max(high, phrase.notes[i].pitch);
+    }
+  };
+  include(_original, _hasOriginal); include(_proposal, _hasProposal);
+  if (low > high) { low = 60; high = 72; }
   if (_hasOriginal)
     [self drawPhrase:_original rect:top
-               color:[NSColor colorWithRed:.30 green:.68 blue:1 alpha:1]];
+               color:[NSColor colorWithRed:.30 green:.68 blue:1 alpha:1] low:low high:high];
   if (_hasProposal)
     [self drawPhrase:_proposal rect:bottom
-               color:[NSColor colorWithRed:1 green:.55 blue:.28 alpha:1]];
+               color:[NSColor colorWithRed:1 green:.55 blue:.28 alpha:1] low:low high:high];
   else {
     NSDictionary *empty = @{NSFontAttributeName: [NSFont systemFontOfSize:11],
       NSForegroundColorAttributeName: [NSColor colorWithWhite:.55 alpha:1]};
@@ -94,18 +115,21 @@ static NSString *BeatLabel(double beat) {
   AudioUnit _unit;
   Phrase _original, _current, _draft;
   std::vector<Phrase> _undo;
-  NSTextField *_instruction, *_message, *_captureSummary;
+  NSTextField *_instruction, *_message, *_captureSummary, *_activeSource;
   NSTextField *_sourceName;
   NSTextField *_endpointField;
   NSPopUpButton *_sourcePopup, *_purposePopup, *_providerPopup, *_modelPopup;
-  NSButton *_plan, *_generateButton, *_apply, *_originalButton, *_revisedButton, *_undoButton;
+  NSButton *_plan, *_generateButton, *_apply, *_originalButton, *_revisedButton, *_undoButton,
+    *_builtinButton;
   NSProgressIndicator *_progress;
   MerlaiPianoRoll *_roll;
   NSTimer *_timer;
   uint64_t _instanceId, _sourcesSignature;
   uint64_t _generationRevision;
+  uint64_t _loadedSourceId, _loadedSourceRevision;
+  NSString *_loadedSourceName, *_loadedSourceKind;
   NSArray<NSDictionary *> *_providers;
-  bool _loaded, _hasDraft;
+  bool _loaded, _hasDraft, _forceBuiltinOnce;
 }
 - (instancetype)initWithUnit:(AudioUnit)unit;
 @end
@@ -156,7 +180,7 @@ static NSString *BeatLabel(double beat) {
     [self button:@"入力を読み込む" action:@selector(loadSource:)
            frame:NSMakeRect(424, 500, 120, 27)];
     _purposePopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(552, 500, 144, 27)];
-    [_purposePopup addItemsWithTitles:@[@"生成: ベース", @"生成: コード", @"生成: 対旋律"]];
+    [_purposePopup addItemsWithTitles:@[@"編集: 元フレーズ", @"生成: ベース", @"生成: コード", @"生成: 対旋律"]];
     [self addSubview:_purposePopup];
     [self label:@"モデル" frame:NSMakeRect(16, 467, 44, 20) size:11 bold:YES];
     _providerPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(64, 460, 170, 27)];
@@ -173,7 +197,9 @@ static NSString *BeatLabel(double beat) {
     [self addSubview:_endpointField];
     [self button:@"再検出" action:@selector(refreshProviders:)
            frame:NSMakeRect(608, 460, 88, 27)];
-    _roll = [[MerlaiPianoRoll alloc] initWithFrame:NSMakeRect(16, 280, 680, 165)];
+    _activeSource = [self label:@"使用中: 未読み込み" frame:NSMakeRect(16, 438, 680, 18)
+                           size:11 bold:NO];
+    _roll = [[MerlaiPianoRoll alloc] initWithFrame:NSMakeRect(16, 270, 680, 165)];
     _roll.wantsLayer = YES; _roll.layer.cornerRadius = 5;
     _roll.layer.masksToBounds = YES; [self addSubview:_roll];
     [self label:@"3  候補を生成、または文章で編集" frame:NSMakeRect(16, 246, 260, 22) size:13 bold:YES];
@@ -192,6 +218,9 @@ static NSString *BeatLabel(double beat) {
                     frame:NSMakeRect(264, 163, 190, 30)];
     _undoButton = [self button:@"一手戻す" action:@selector(undoEdit:)
                          frame:NSMakeRect(462, 163, 100, 30)];
+    _builtinButton = [self button:@"内蔵で生成" action:@selector(generateBuiltin:)
+                            frame:NSMakeRect(570, 163, 126, 30)];
+    _builtinButton.hidden = YES;
     _apply.enabled = _plan.enabled = _originalButton.enabled =
         _revisedButton.enabled = _undoButton.enabled = NO;
     _message = [NSTextField wrappingLabelWithString:
@@ -219,16 +248,17 @@ static NSString *BeatLabel(double beat) {
   for (size_t i = 0; i < count; ++i)
     signature ^= entries[i].id * 1099511628211ULL ^ entries[i].revision;
   if (signature == _sourcesSignature) return;
-  uint64_t selected = _sourcePopup.selectedItem.representedObject
-    ? [_sourcePopup.selectedItem.representedObject unsignedLongLongValue] : 0;
+  NSDictionary *selectedInfo = _sourcePopup.selectedItem.representedObject;
+  uint64_t selected = [selectedInfo[@"id"] unsignedLongLongValue];
   [_sourcePopup removeAllItems];
   [_sourcePopup addItemWithTitle:@"入力元: このトラック"];
-  _sourcePopup.lastItem.representedObject = @(0);
+  _sourcePopup.lastItem.representedObject = nil;
   for (size_t i = 0; i < count; ++i) {
     NSString *name = [NSString stringWithUTF8String:entries[i].name];
     NSString *kind = entries[i].kind == 1 ? @"音声" : @"MIDI";
     [_sourcePopup addItemWithTitle:[NSString stringWithFormat:@"入力元: %@ [%@] (%u)", name, kind, entries[i].count]];
-    _sourcePopup.lastItem.representedObject = @(entries[i].id);
+    _sourcePopup.lastItem.representedObject = @{@"id": @(entries[i].id), @"name": name,
+      @"kind": kind, @"revision": @(entries[i].revision)};
     if (entries[i].id == selected) [_sourcePopup selectItem:_sourcePopup.lastItem];
   }
   _sourcesSignature = signature;
@@ -255,9 +285,13 @@ static NSString *BeatLabel(double beat) {
       AudioUnitSetProperty(_unit, PlaybackMode, 0, 0, &originalMode, sizeof(originalMode));
       ++_generationRevision; _generateButton.enabled = YES; _hasDraft = false;
       _current = _original; _loaded = true; _progress.doubleValue = 1;
+      _loadedSourceId = _instanceId; _loadedSourceRevision = 0;
+      _loadedSourceName = _sourceName.stringValue; _loadedSourceKind = @"MIDI";
       _captureSummary.stringValue = [NSString stringWithFormat:
         @"%@ → %@  •  %u音を取り込み済み", BeatLabel(_original.start),
         BeatLabel(_original.end), _original.count];
+      _activeSource.stringValue = [NSString stringWithFormat:@"使用中: %@ [MIDI]・%@・このトラック",
+        _loadedSourceName, PhraseSummary(_original)];
       [_roll setOriginal:_original]; [_roll setProposal:_original visible:NO];
       merlai_link_rename(_instanceId, _sourceName.stringValue.UTF8String);
       merlai_link_publish(_instanceId, _original);
@@ -274,8 +308,8 @@ static NSString *BeatLabel(double beat) {
   }
 }
 - (void)loadSource:(id)sender {
-  NSNumber *represented = _sourcePopup.selectedItem.representedObject;
-  uint64_t source = represented ? represented.unsignedLongLongValue : 0;
+  NSDictionary *represented = _sourcePopup.selectedItem.representedObject;
+  uint64_t source = [represented[@"id"] unsignedLongLongValue];
   if (!source) {
     _message.stringValue = @"このトラックでは「フレーズを取り込む」を使ってください。";
     return;
@@ -290,10 +324,16 @@ static NSString *BeatLabel(double beat) {
   AudioUnitSetProperty(_unit, PlaybackMode, 0, 0, &originalMode, sizeof(originalMode));
   ++_generationRevision; _generateButton.enabled = YES; _hasDraft = false;
   _original = _current = linked; _loaded = true; _undo.clear();
+  _loadedSourceId = source; _loadedSourceRevision = revision;
+  _loadedSourceName = represented[@"name"] ?: @"別トラック";
+  _loadedSourceKind = represented[@"kind"] ?: @"MIDI";
   [_roll setOriginal:_original]; [_roll setProposal:_original visible:NO];
   _progress.doubleValue = 1;
   _captureSummary.stringValue = [NSString stringWithFormat:@"%@ → %@  •  別トラックから%u音",
     BeatLabel(linked.start), BeatLabel(linked.end), linked.count];
+  _activeSource.stringValue = [NSString stringWithFormat:@"使用中: %@ [%@]・%@・rev %llu",
+    _loadedSourceName, _loadedSourceKind, PhraseSummary(linked),
+    (unsigned long long)_loadedSourceRevision];
   _plan.enabled = _originalButton.enabled = YES;
   _revisedButton.enabled = _undoButton.enabled = _apply.enabled = NO;
   _message.stringValue = @"別トラックの入力を読み込みました。生成目的を選び「候補を生成」を押してください。";
@@ -303,6 +343,8 @@ static NSString *BeatLabel(double beat) {
   if (AudioUnitSetProperty(_unit, Arm, 0, 0, &value, sizeof(value)) == noErr) {
     ++_generationRevision; _generateButton.enabled = YES;
     _loaded = false; _hasDraft = false; _undo.clear(); [_roll clear];
+    _loadedSourceId = _loadedSourceRevision = 0; _loadedSourceName = nil; _loadedSourceKind = nil;
+    _activeSource.stringValue = @"使用中: 取り込み待機中";
     _apply.enabled = _plan.enabled = _originalButton.enabled =
       _revisedButton.enabled = _undoButton.enabled = NO;
     _captureSummary.stringValue = @"待機中 — 再生位置をサイクル先頭へ移動して再生";
@@ -431,7 +473,9 @@ static NSString *BeatLabel(double beat) {
   }
   NSDictionary *provider = _providerPopup.selectedItem.representedObject;
   NSString *model = _modelPopup.selectedItem.representedObject ?: @"";
-  NSString *source = _sourcePopup.selectedItem.title ?: _sourceName.stringValue;
+  NSString *source = [NSString stringWithFormat:@"%@ [%@]・%@・rev %llu",
+    _loadedSourceName ?: @"このトラック", _loadedSourceKind ?: @"MIDI",
+    PhraseSummary(input), (unsigned long long)_loadedSourceRevision];
   MusicalContext context{}; UInt32 contextSize = sizeof(context);
   AudioUnitGetProperty(_unit, CurrentMusicalContext, 0, 0, &context, &contextSize);
   NSString *timeSignature = [NSString stringWithFormat:@"%g/%u",
@@ -443,10 +487,12 @@ static NSString *BeatLabel(double beat) {
     @"payload": @{
       @"version": @1,
       @"instruction": _instruction.stringValue ?: @"",
-      @"purpose": @[@"bass", @"chords", @"counter_melody"][purpose],
+      @"purpose": @[@"edit", @"bass", @"chords", @"counter_melody"][purpose],
       @"musicalContext": @{@"span": @(input.end - input.start),
         @"tempo": context.tempo > 0 ? @(context.tempo) : [NSNull null],
-        @"timeSignature": timeSignature, @"source": source},
+        @"timeSignature": timeSignature, @"source": source,
+        @"sourceId": @(_loadedSourceId), @"sourceRevision": @(_loadedSourceRevision),
+        @"sourceKind": _loadedSourceKind ?: @"MIDI"},
       @"notes": notes,
     }
   };
@@ -472,6 +518,10 @@ static NSString *BeatLabel(double beat) {
   }
   return (int)notes.count;
 }
+- (void)generateBuiltin:(id)sender {
+  _forceBuiltinOnce = true;
+  [self generate:sender];
+}
 - (void)generate:(id)sender {
   UInt32 originalMode = 0;
   AudioUnitSetProperty(_unit, PlaybackMode, 0, 0, &originalMode, sizeof(originalMode));
@@ -480,10 +530,12 @@ static NSString *BeatLabel(double beat) {
     _message.stringValue = @"先にこのトラックを取り込むか、別トラックの入力を読み込んでください。";
     return;
   }
-  Phrase input = _original;
-  auto draft = std::make_shared<Phrase>(_current);
   uint32_t purpose = (uint32_t)_purposePopup.indexOfSelectedItem;
-  NSDictionary *provider = _providerPopup.selectedItem.representedObject;
+  Phrase input = purpose == 0 ? _current : _original;
+  auto draft = std::make_shared<Phrase>(_current);
+  BOOL forceBuiltin = _forceBuiltinOnce; _forceBuiltinOnce = false;
+  NSDictionary *provider = forceBuiltin ? nil : _providerPopup.selectedItem.representedObject;
+  NSString *instruction = [_instruction.stringValue copy];
   if (provider && ![provider[@"available"] boolValue]) {
     _message.stringValue = provider[@"detail"] ?: @"選択したモデルは利用できません。"; return;
   }
@@ -497,33 +549,45 @@ static NSString *BeatLabel(double beat) {
   NSDictionary *request = provider ? [self generationRequestFor:input purpose:purpose] : nil;
   uint64_t revision = ++_generationRevision;
   _generateButton.enabled = _plan.enabled = NO;
+  _builtinButton.hidden = YES;
   _message.stringValue = @"候補を生成中です。再生を止めずにバックグラウンドで処理します。";
   __weak MerlaiPhrasePanel *weakSelf = self;
   dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
     NSString *bridgeError = nil;
     int n = request ? [weakSelf generateWithBridge:request output:*draft error:&bridgeError] : -1;
-    BOOL usedFallback = request && n < 0;
-    if (n < 0) n = merlai_generate(input.notes.data(), input.count,
-      input.end - input.start, purpose, draft->notes.data());
+    if (!request) {
+      if (purpose == 0) n = merlai_edit(input.notes.data(), input.count,
+        input.end - input.start, instruction.UTF8String,
+        draft->notes.data());
+      else n = merlai_generate(input.notes.data(), input.count,
+        input.end - input.start, purpose, draft->notes.data());
+    }
     draft->count = n < 0 ? 0 : (uint32_t)n;
     dispatch_async(dispatch_get_main_queue(), ^{
       MerlaiPhrasePanel *panel = weakSelf;
       if (!panel || revision != panel->_generationRevision) return;
       panel->_generateButton.enabled = panel->_plan.enabled = YES;
       if (n < 0) {
-        panel->_message.stringValue =
-          @"この入力から候補を生成できませんでした。ノートを含む範囲を選んでください。";
+        if (request) {
+          panel->_message.stringValue = [NSString stringWithFormat:
+            @"モデル生成に失敗しました: %@ 「候補を生成」で再試行できます。",
+            bridgeError ?: @"応答を読み取れませんでした。"];
+          panel->_builtinButton.hidden = NO;
+        } else {
+          panel->_message.stringValue = purpose == 0
+            ? @"内蔵編集ではこの指示を解釈できませんでした。LLMを選ぶか指示を変更してください。"
+            : @"この入力から内蔵候補を生成できませんでした。";
+        }
         return;
       }
       panel->_draft = *draft;
       panel->_hasDraft = true;
       [panel->_roll setProposal:panel->_draft visible:YES];
-      NSString *purposeName = @[@"ベース", @"コード", @"対旋律"][purpose];
+      NSString *purposeName = @[@"編集", @"ベース", @"コード", @"対旋律"][purpose];
       panel->_message.stringValue = [NSString stringWithFormat:
         @"%@候補: 青 %u音 → オレンジ %d音。適用前のプレビューです。",
         purposeName, input.count, n];
-      if (usedFallback) panel->_message.stringValue = [NSString stringWithFormat:
-        @"モデルを利用できなかったため内蔵ルールで生成しました。%@", bridgeError ?: @""];
+      panel->_builtinButton.hidden = YES;
       panel->_apply.enabled = panel->_revisedButton.enabled = YES;
     });
   });

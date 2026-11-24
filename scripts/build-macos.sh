@@ -4,6 +4,7 @@ cd "$(dirname "$0")/.."
 cargo build --locked --release
 swift build --package-path macos --build-system native -c release
 swift_bin=$(swift build --package-path macos --build-system native -c release --show-bin-path)
+"$swift_bin/ModelBridge" self-test
 bundle=dist/Merlai.app/Contents
 mkdir -p "$bundle/MacOS"
 cp "$swift_bin/Merlai" "$swift_bin/Host" "$swift_bin/ModelBridge" target/release/merlai-compose "$bundle/MacOS/"
