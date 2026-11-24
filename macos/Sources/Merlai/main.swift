@@ -25,6 +25,7 @@ struct Take {
   let directory: URL
   let candidates: [Candidate]
   let voice: String
+  let drumVoice: String
 }
 struct Response: Decodable { let candidates: [Candidate] }
 func helper(_ name: String, _ args: [String], input: Data? = nil) async throws -> Data {
@@ -75,6 +76,7 @@ func midiProvider(_ path: String) -> NSItemProvider {
   @Published var drums: URL?
   @Published var instruments = [Instrument]()
   @Published var instrument = UserDefaults.standard.string(forKey: "instrument") ?? ""
+  @Published var drumInstrument = UserDefaults.standard.string(forKey: "drumInstrument") ?? ""
   @Published var kickText = "36"
   @Published var tonic = -1
   @Published var bars = 2
@@ -131,7 +133,10 @@ func midiProvider(_ path: String) -> NSItemProvider {
     let data = try await helper("merlai-compose", [], input: JSONEncoder().encode(req))
     let result = try JSONDecoder().decode(Response.self, from: data)
     try data.write(to: dir.appendingPathComponent("song.json"), options: .atomic)
-    takes.append(Take(directory: dir, candidates: result.candidates, voice: instrument))
+    takes.append(
+      Take(
+        directory: dir, candidates: result.candidates, voice: instrument,
+        drumVoice: drums == nil ? "" : drumInstrument))
     selected = takes.count - 1
   }
   func restoreProfile() async {
@@ -153,12 +158,12 @@ func midiProvider(_ path: String) -> NSItemProvider {
     if !FileManager.default.fileExists(atPath: url.path) {
       let temporary = session.appendingPathComponent(UUID().uuidString + ".caf")
       defer { try? FileManager.default.removeItem(at: temporary) }
-      _ = try await helper(
-        "Host",
-        [
-          "render", take.voice, session.appendingPathComponent("song.json").path, String(index),
-          temporary.path,
-        ])
+      var arguments = [
+        "render", take.voice, session.appendingPathComponent("song.json").path, String(index),
+        temporary.path,
+      ]
+      if !take.drumVoice.isEmpty { arguments.append(take.drumVoice) }
+      _ = try await helper("Host", arguments)
       try FileManager.default.moveItem(at: temporary, to: url)
     }
     player = try AVAudioPlayer(contentsOf: url)
@@ -189,6 +194,16 @@ struct Composer: View {
       .dropDestination(for: URL.self) { urls, _ in
         guard !model.busy, urls.count == 1, let url = urls.first else { return false }
         return model.use(url, asDrums: true)
+      }
+      if model.drums != nil {
+        Picker("ドラム音源", selection: $model.drumInstrument) {
+          Text("試聴しない").tag("")
+          ForEach(model.instruments) { Text($0.name).tag($0.id) }
+        }
+        .onChange(of: model.drumInstrument) { _, _ in
+          UserDefaults.standard.set(model.drumInstrument, forKey: "drumInstrument")
+          model.clearTakes()
+        }
       }
       HStack {
         Text("キック番号")
@@ -259,6 +274,11 @@ struct Composer: View {
             !model.instruments.contains(where: { $0.id == model.instrument })
           {
             model.instrument = ""
+          }
+          if !model.drumInstrument.isEmpty,
+            !model.instruments.contains(where: { $0.id == model.drumInstrument })
+          {
+            model.drumInstrument = ""
           }
           await model.restoreProfile()
         } catch { model.status = error.localizedDescription }

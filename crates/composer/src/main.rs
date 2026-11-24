@@ -42,6 +42,7 @@ struct Response {
     tempo: u32,
     continuation_at: u32,
     melody: Vec<Note>,
+    drums: Vec<Note>,
     candidates: Vec<Candidate>,
 }
 #[derive(Serialize)]
@@ -266,12 +267,36 @@ fn generate(r: &Request) -> Result<Response> {
         write(&file, &notes, end, c.ppq)?;
         candidates.push(Candidate { file, notes })
     }
+    let preview_end = period.checked_add(end).ok_or("preview length overflow")?;
+    let mut preview_drums = Vec::new();
+    if let Some(d) = &drum {
+        let normalized_period = u32::try_from(drum_period)?;
+        for base in (0..preview_end).step_by(normalized_period as usize) {
+            for note in &d.notes {
+                let at = u32::try_from(note.at as u64 * c.ppq as u64 / d.ppq as u64)?;
+                let len = u32::try_from((note.len as u64 * c.ppq as u64 / d.ppq as u64).max(1))?;
+                let Some(at) = base.checked_add(at) else {
+                    continue;
+                };
+                if at >= preview_end {
+                    continue;
+                }
+                preview_drums.push(Note {
+                    at,
+                    len: len.min(preview_end - at),
+                    pitch: note.pitch,
+                    velocity: note.velocity,
+                });
+            }
+        }
+    }
     Ok(Response {
         version: 1,
         ppq: c.ppq,
         tempo: c.tempo,
         continuation_at: period,
         melody: c.notes,
+        drums: preview_drums,
         candidates,
     })
 }
@@ -326,6 +351,9 @@ mod tests {
         let result = generate(&req).unwrap();
         assert_eq!(result.candidates.len(), 3);
         assert_eq!(result.continuation_at, 3840);
+        assert!(!result.drums.is_empty());
+        assert!(result.drums.iter().all(|note| note.at < 7680));
+        assert!(result.drums.iter().any(|note| note.at >= 3840));
         let original = fs::read(&result.candidates[0].file).unwrap();
         let pluck = read(&result.candidates[0].file).unwrap();
         assert_eq!(pluck.notes.len(), 12);
@@ -340,6 +368,10 @@ mod tests {
         req.release_ms = 500.;
         let pad = generate(&req).unwrap();
         assert_ne!(original, fs::read(&pad.candidates[0].file).unwrap());
+        fs::remove_dir_all(&dir).unwrap();
+        req.drums = None;
+        let without_drums = generate(&req).unwrap();
+        assert!(without_drums.drums.is_empty());
         fs::remove_dir_all(&dir).unwrap();
     }
 }

@@ -27,6 +27,7 @@ struct Candidate: Decodable { let notes: [Note] }
 struct Song: Decodable {
   let ppq, tempo, continuation_at: Int
   let melody: [Note]
+  let drums: [Note]?
   let candidates: [Candidate]
 }
 let rate = 44100.0
@@ -58,11 +59,17 @@ func instrument(_ comp: AVAudioUnitComponent) throws -> AVAudioUnitMIDIInstrumen
 final class Renderer {
   let engine = AVAudioEngine()
   let unit: AVAudioUnitMIDIInstrument
+  let drumUnit: AVAudioUnitMIDIInstrument?
   let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 2)!
-  init(_ instrument: AVAudioUnitMIDIInstrument) throws {
+  init(_ instrument: AVAudioUnitMIDIInstrument, drum: AVAudioUnitMIDIInstrument? = nil) throws {
     unit = instrument
+    drumUnit = drum
     engine.attach(unit)
     engine.connect(unit, to: engine.mainMixerNode, format: format)
+    if let drum {
+      engine.attach(drum)
+      engine.connect(drum, to: engine.mainMixerNode, format: format)
+    }
     try engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: 1024)
     try engine.start()
   }
@@ -107,28 +114,30 @@ final class Renderer {
   func render(_ song: Song, index: Int, to url: URL) throws {
     guard song.candidates.indices.contains(index) else { throw Failure("Invalid candidate") }
     let scale = Double(song.tempo) * rate / 1_000_000 / Double(song.ppq)
-    var events = [(Int, Bool, UInt8, UInt8)]()
-    func add(_ notes: [Note], offset: Int) {
+    var events = [(Int, Bool, Bool, UInt8, UInt8)]()
+    func add(_ notes: [Note], offset: Int, drum: Bool = false) {
       for n in notes {
-        events.append((Int(Double(offset + n.at) * scale), true, n.pitch, n.velocity))
-        events.append((Int(Double(offset + n.at + n.len) * scale), false, n.pitch, 0))
+        events.append((Int(Double(offset + n.at) * scale), true, drum, n.pitch, n.velocity))
+        events.append((Int(Double(offset + n.at + n.len) * scale), false, drum, n.pitch, 0))
       }
     }
     add(song.melody, offset: 0)
     add(song.candidates[index].notes, offset: song.continuation_at)
+    if drumUnit != nil { add(song.drums ?? [], offset: 0, drum: true) }
     events.sort { $0.0 == $1.0 ? (!$0.1 && $1.1) : $0.0 < $1.0 }
     guard (events.last?.0 ?? 0) < Int(rate * 600) else {
       throw Failure("Preview exceeds 10 minutes")
     }
     let file = try AVAudioFile(forWriting: url, settings: format.settings)
     var now = 0
-    for (frame, on, key, vel) in events {
+    for (frame, on, drum, key, vel) in events {
       try frames(frame - now) { try file.write(from: $0) }
       now = frame
+      let target = drum ? drumUnit! : unit
       if on {
-        unit.startNote(key, withVelocity: vel, onChannel: 0)
+        target.startNote(key, withVelocity: vel, onChannel: 0)
       } else {
-        unit.stopNote(key, onChannel: 0)
+        target.stopNote(key, onChannel: 0)
       }
     }
     try frames(Int(rate * 2)) { try file.write(from: $0) }
@@ -274,10 +283,28 @@ func run() throws {
     try data.write(to: stateURL, options: .atomic)
     try JSONEncoder().encode(p).write(to: profileURL, options: .atomic)
     try emit(p)
-  } else if args[0] == "render", args.count == 5, let index = Int(args[3]) {
+  } else if args[0] == "render", (args.count == 5 || args.count == 6),
+    let index = Int(args[3])
+  {
     let song = try JSONDecoder().decode(
       Song.self, from: Data(contentsOf: URL(fileURLWithPath: args[2])))
-    try Renderer(unit).render(song, index: index, to: URL(fileURLWithPath: args[4]))
+    var drums: AVAudioUnitMIDIInstrument?
+    if args.count == 6 {
+      guard let drumComponent = available.first(where: { id($0) == args[5] }) else {
+        throw Failure("Unknown drum instrument")
+      }
+      let drum = try instrument(drumComponent)
+      let drumState = storage.appendingPathComponent(args[5] + ".plist")
+      if let data = try? Data(contentsOf: drumState),
+        let state = try PropertyListSerialization.propertyList(from: data, format: nil)
+          as? [String: Any]
+      {
+        drum.auAudioUnit.fullState = state
+      }
+      drums = drum
+    }
+    try Renderer(unit, drum: drums).render(
+      song, index: index, to: URL(fileURLWithPath: args[4]))
   } else {
     throw Failure("Unknown host command")
   }
