@@ -32,6 +32,18 @@ int main() {
     assert(prompt && tabs && generation && editor && roll);
     assert([prompt.accessibilityLabel isEqualToString:@"生成指示"]);
     assert([roll.accessibilityLabel isEqualToString:@"MIDIノート編集領域"]);
+    NSArray<NSString *> *firstMouseIDs = @[@"merlai.instruction", @"merlai.source",
+      @"merlai.purpose", @"merlai.provider", @"merlai.model", @"merlai.endpoint",
+      @"merlai.plan", @"merlai.generate", @"merlai.tabs", @"merlai.editor-roll",
+      @"merlai.editor-copy", @"merlai.editor-undo", @"merlai.editor-audition",
+      @"merlai.editor-confirm"];
+    NSEvent *probe = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDown location:NSZeroPoint
+      modifierFlags:0 timestamp:0 windowNumber:window.windowNumber context:nil eventNumber:0
+      clickCount:1 pressure:1];
+    for (NSString *identifier in firstMouseIDs) {
+      NSView *control = find(panel, identifier);
+      assert(control && [control acceptsFirstMouse:probe]);
+    }
     assert([window makeFirstResponder:prompt]);
     [prompt selectText:nil];
     id responder = window.firstResponder;
