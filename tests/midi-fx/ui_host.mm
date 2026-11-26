@@ -1,5 +1,6 @@
 #include "../../macos/MidiFX/Phrase.h"
 #import <Cocoa/Cocoa.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #include <cassert>
 #include <cstdio>
 
@@ -8,6 +9,8 @@ extern "C" void merlai_ui_test_load_phrase(NSView *, const Phrase *);
 extern "C" uint32_t merlai_ui_test_draft_count(NSView *);
 extern "C" void merlai_ui_test_set_candidate(NSView *, const Phrase *);
 extern "C" void merlai_ui_test_export_phrase(NSView *, Phrase *);
+extern "C" NSURL *merlai_ui_test_drag_url(NSView *);
+extern "C" id<NSPasteboardWriting> merlai_ui_test_drag_writer(NSView *);
 extern "C" void merlai_ui_test_show_response(NSView *, NSDictionary *);
 
 static NSView *find(NSView *root, NSString *identifier) {
@@ -70,6 +73,11 @@ int main() {
     assert(![[drag valueForKey:@"confirmed"] boolValue]);
     Phrase exported{}; merlai_ui_test_export_phrase(panel, &exported);
     assert(exported.count == 1 && exported.notes[0].pitch == 72);
+    NSURL *dragURL = merlai_ui_test_drag_url(panel);
+    assert(dragURL.isFileURL && [[NSFileManager defaultManager] fileExistsAtPath:dragURL.path]);
+    id<NSPasteboardWriting> dragWriter = merlai_ui_test_drag_writer(panel);
+    assert([dragWriter isKindOfClass:NSFilePromiseProvider.class]);
+    assert([((NSFilePromiseProvider *)dragWriter).fileType isEqualToString:UTTypeData.identifier]);
 
     NSString *longMessage = @"主旋律を避けるため音域を上げ、長い音価のストリングスにしました。次の候補も選べます。";
     merlai_ui_test_show_response(panel, @{@"message": longMessage,

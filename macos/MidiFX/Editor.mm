@@ -33,7 +33,7 @@
 - (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
 @end
 
-@interface MerlaiMIDIDragView : NSView <NSDraggingSource>
+@interface MerlaiMIDIDragView : NSView <NSDraggingSource, NSFilePromiseProviderDelegate>
 @property(nonatomic, weak) id<MerlaiMIDIDragSource> source;
 @property(nonatomic) BOOL enabled;
 @property(nonatomic) BOOL confirmed;
@@ -64,20 +64,41 @@
 - (void)resetCursorRects {
   [self addCursorRect:self.bounds cursor:self.enabled ? NSCursor.openHandCursor : NSCursor.arrowCursor];
 }
-- (void)mouseDragged:(NSEvent *)event {
+- (id<NSPasteboardWriting>)dragPasteboardWriter {
+  // public.midi-audio is not accepted by NSFilePromiseProvider on all macOS
+  // versions. The promised filename carries the .mid type for the receiver.
+  return [[NSFilePromiseProvider alloc] initWithFileType:UTTypeData.identifier delegate:self];
+}
+- (void)beginMIDIDrag:(NSEvent *)event {
   if (!self.enabled) return;
-  NSURL *url = [self.source midiDragURL];
-  if (!url) return;
-  NSPasteboardItem *item = [[NSPasteboardItem alloc] init];
-  [item setString:url.absoluteString forType:NSPasteboardTypeFileURL];
-  NSDraggingItem *drag = [[NSDraggingItem alloc] initWithPasteboardWriter:item];
-  NSImage *image = [NSWorkspace.sharedWorkspace iconForFile:url.path];
-  [drag setDraggingFrame:NSMakeRect(8, 0, 32, 32) contents:image];
+  NSDraggingItem *drag = [[NSDraggingItem alloc]
+    initWithPasteboardWriter:[self dragPasteboardWriter]];
+  NSImage *image = [NSWorkspace.sharedWorkspace iconForContentType:UTTypeMIDI];
+  NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+  [drag setDraggingFrame:NSMakeRect(point.x - 16, point.y - 16, 32, 32) contents:image];
   [self beginDraggingSessionWithItems:@[drag] event:event source:self];
 }
+- (void)mouseDown:(NSEvent *)event { [self beginMIDIDrag:event]; }
 - (NSDragOperation)draggingSession:(NSDraggingSession *)session
  sourceOperationMaskForDraggingContext:(NSDraggingContext)context {
   return NSDragOperationCopy;
+}
+- (NSString *)filePromiseProvider:(NSFilePromiseProvider *)provider
+              fileNameForType:(NSString *)fileType {
+  return @"Merlai Candidate.mid";
+}
+- (NSOperationQueue *)operationQueueForFilePromiseProvider:(NSFilePromiseProvider *)provider {
+  return NSOperationQueue.mainQueue;
+}
+- (void)filePromiseProvider:(NSFilePromiseProvider *)provider
+           writePromiseToURL:(NSURL *)url
+           completionHandler:(void (^)(NSError * _Nullable))completionHandler {
+  NSURL *sourceURL = [self.source midiDragURL];
+  NSError *error = nil;
+  NSData *data = sourceURL ? [NSData dataWithContentsOfURL:sourceURL options:0 error:&error] : nil;
+  if (data && ![data writeToURL:url options:NSDataWritingAtomic error:&error]) data = nil;
+  completionHandler(data ? nil : (error ?: [NSError errorWithDomain:@"MerlaiMIDIDrag"
+    code:1 userInfo:@{NSLocalizedDescriptionKey: @"MIDI候補を書き出せませんでした。"}]));
 }
 @end
 
@@ -303,7 +324,8 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   Phrase _original, _current, _draft;
   std::vector<Phrase> _undo;
   MerlaiPromptTextView *_instruction;
-  NSTextField *_message, *_captureSummary, *_activeSource, *_assistantMessage;
+  NSTextField *_message, *_captureSummary, *_activeSource;
+  NSTextView *_assistantMessage;
   NSTextField *_sourceName;
   NSTextField *_endpointField;
   MerlaiPopUpButton *_sourcePopup, *_purposePopup, *_providerPopup, *_modelPopup;
@@ -314,7 +336,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   MerlaiMIDIDragView *_midiDragView;
   NSProgressIndicator *_progress;
   MerlaiPianoRoll *_roll, *_editorRoll;
-  NSView *_generationView, *_editorView;
+  NSView *_generationView, *_editorView, *_assistantPanel;
   MerlaiSegmentedControl *_tabs;
   NSTimer *_timer;
   NSTimer *_generationTimer;
@@ -501,7 +523,24 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _assistantMessage.drawsBackground = NO;
     _assistantMessage.font = [NSFont systemFontOfSize:11];
     _assistantMessage.textColor = [NSColor colorWithRed:.75 green:.86 blue:1 alpha:1];
-    [_generationView addSubview:_assistantMessage];
+    _assistantMessage.string = @"候補を生成すると、モデルの説明と次の提案をここに表示します。";
+    _assistantMessage.accessibilityLabel = @"LLMからの説明";
+    _assistantMessage.accessibilityIdentifier = @"merlai.assistant-message";
+    _assistantMessage.verticallyResizable = YES; _assistantMessage.horizontallyResizable = NO;
+    _assistantMessage.textContainer.widthTracksTextView = YES;
+    assistantScroll.documentView = _assistantMessage;
+    [_assistantPanel addSubview:assistantScroll];
+    NSMutableArray *suggestionButtons = [NSMutableArray arrayWithCapacity:3];
+    for (NSUInteger i = 0; i < 3; ++i) {
+      MerlaiButton *button = [[MerlaiButton alloc] initWithFrame:NSMakeRect(10, 70 - i * 32, 212, 26)];
+      button.bezelStyle = NSBezelStyleRounded; button.target = self;
+      button.action = @selector(useSuggestion:); button.tag = 7100 + i; button.hidden = YES;
+      button.font = [NSFont systemFontOfSize:10];
+      button.accessibilityIdentifier = [NSString stringWithFormat:@"merlai.suggestion.%lu",
+        (unsigned long)i];
+      [_assistantPanel addSubview:button]; [suggestionButtons addObject:button];
+    }
+    _suggestionButtons = suggestionButtons;
     _tabs = [[MerlaiSegmentedControl alloc] initWithFrame:NSMakeRect(16, 682, 300, 28)];
     _tabs.segmentCount = 2; [_tabs setLabel:@"生成" forSegment:0];
     [_tabs setLabel:@"MIDI編集" forSegment:1]; _tabs.selectedSegment = 0;
@@ -1161,6 +1200,10 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   [self setExportEnabled:YES confirmed:NO];
 }
 - (Phrase)exportPhraseForTesting { return [self exportPhrase]; }
+- (NSURL *)midiDragURLForTesting { return [self midiDragURL]; }
+- (id<NSPasteboardWriting>)dragPasteboardWriterForTesting {
+  return [_midiDragView dragPasteboardWriter];
+}
 - (void)showAssistantResponseForTesting:(NSDictionary *)response {
   [self showAssistantResponse:response];
 }
@@ -1182,6 +1225,12 @@ extern "C" void merlai_ui_test_set_candidate(NSView *view, const Phrase *phrase)
 }
 extern "C" void merlai_ui_test_export_phrase(NSView *view, Phrase *phrase) {
   *phrase = [(MerlaiPhrasePanel *)view exportPhraseForTesting];
+}
+extern "C" NSURL *merlai_ui_test_drag_url(NSView *view) {
+  return [(MerlaiPhrasePanel *)view midiDragURLForTesting];
+}
+extern "C" id<NSPasteboardWriting> merlai_ui_test_drag_writer(NSView *view) {
+  return [(MerlaiPhrasePanel *)view dragPasteboardWriterForTesting];
 }
 extern "C" void merlai_ui_test_show_response(NSView *view, NSDictionary *response) {
   [(MerlaiPhrasePanel *)view showAssistantResponseForTesting:response];
