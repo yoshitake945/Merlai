@@ -76,8 +76,9 @@ int main() {
     NSURL *dragURL = merlai_ui_test_drag_url(panel);
     assert(dragURL.isFileURL && [[NSFileManager defaultManager] fileExistsAtPath:dragURL.path]);
     id<NSPasteboardWriting> dragWriter = merlai_ui_test_drag_writer(panel);
-    assert([dragWriter isKindOfClass:NSFilePromiseProvider.class]);
-    assert([((NSFilePromiseProvider *)dragWriter).fileType isEqualToString:UTTypeData.identifier]);
+    assert([dragWriter isKindOfClass:NSPasteboardItem.class]);
+    NSPasteboardItem *dragItem = (NSPasteboardItem *)dragWriter;
+    assert([dragItem.types containsObject:NSPasteboardTypeFileURL]);
 
     NSString *longMessage = @"主旋律を避けるため音域を上げ、長い音価のストリングスにしました。次の候補も選べます。";
     merlai_ui_test_show_response(panel, @{@"message": longMessage,
