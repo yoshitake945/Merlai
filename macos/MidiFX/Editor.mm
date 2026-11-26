@@ -13,6 +13,26 @@
 - (NSURL *)midiDragURL;
 @end
 
+@interface MerlaiButton : NSButton @end
+@implementation MerlaiButton
+- (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
+@end
+
+@interface MerlaiPopUpButton : NSPopUpButton @end
+@implementation MerlaiPopUpButton
+- (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
+@end
+
+@interface MerlaiSegmentedControl : NSSegmentedControl @end
+@implementation MerlaiSegmentedControl
+- (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
+@end
+
+@interface MerlaiTextField : NSTextField @end
+@implementation MerlaiTextField
+- (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
+@end
+
 @interface MerlaiMIDIDragView : NSView <NSDraggingSource>
 @property(nonatomic, weak) id<MerlaiMIDIDragSource> source;
 @property(nonatomic) BOOL enabled;
@@ -20,6 +40,7 @@
 
 @implementation MerlaiMIDIDragView
 - (BOOL)isFlipped { return YES; }
+- (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
 - (void)setEnabled:(BOOL)enabled { _enabled = enabled; [self setNeedsDisplay:YES]; }
 - (void)drawRect:(NSRect)dirtyRect {
   NSColor *fill = self.enabled
@@ -56,13 +77,19 @@
 }
 @end
 
-@interface MerlaiPromptField : NSTextField
+@interface MerlaiPromptTextView : NSTextView
+@property(nonatomic, copy) NSString *placeholderString;
 @end
-@implementation MerlaiPromptField
-- (BOOL)acceptsFirstResponder { return YES; }
-- (void)mouseDown:(NSEvent *)event {
-  [self.window makeFirstResponder:self];
-  [super mouseDown:event];
+@implementation MerlaiPromptTextView
+- (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
+- (void)drawRect:(NSRect)dirtyRect {
+  [super drawRect:dirtyRect];
+  if (self.string.length || !self.placeholderString.length) return;
+  NSDictionary *style = @{
+    NSFontAttributeName: self.font ?: [NSFont systemFontOfSize:13],
+    NSForegroundColorAttributeName: NSColor.placeholderTextColor,
+  };
+  [self.placeholderString drawAtPoint:NSMakePoint(5, 4) withAttributes:style];
 }
 @end
 
@@ -109,6 +136,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
 
 @implementation MerlaiPianoRoll
 - (BOOL)isFlipped { return YES; }
+- (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
 - (BOOL)acceptsFirstResponder { return _editable; }
 - (void)setOriginal:(const Phrase &)p {
   _original = p; _hasOriginal = YES; [self setNeedsDisplay:YES];
@@ -266,15 +294,15 @@ static NSString *PhraseSummary(const Phrase &phrase) {
 }
 @end
 
-@interface MerlaiPhrasePanel : NSView <MerlaiMIDIDragSource, NSTextFieldDelegate> {
+@interface MerlaiPhrasePanel : NSView <MerlaiMIDIDragSource, NSTextViewDelegate> {
   AudioUnit _unit;
   Phrase _original, _current, _draft;
   std::vector<Phrase> _undo;
-  MerlaiPromptField *_instruction;
+  MerlaiPromptTextView *_instruction;
   NSTextField *_message, *_captureSummary, *_activeSource, *_assistantMessage;
   NSTextField *_sourceName;
   NSTextField *_endpointField;
-  NSPopUpButton *_sourcePopup, *_purposePopup, *_providerPopup, *_modelPopup;
+  MerlaiPopUpButton *_sourcePopup, *_purposePopup, *_providerPopup, *_modelPopup;
   NSButton *_plan, *_generateButton, *_apply, *_originalButton, *_revisedButton, *_undoButton,
     *_builtinButton;
   NSButton *_cancelButton;
@@ -283,7 +311,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   NSProgressIndicator *_progress;
   MerlaiPianoRoll *_roll, *_editorRoll;
   NSView *_generationView, *_editorView;
-  NSSegmentedControl *_tabs;
+  MerlaiSegmentedControl *_tabs;
   NSTimer *_timer;
   NSTimer *_generationTimer;
   NSTask *_modelTask;
@@ -303,10 +331,17 @@ static NSString *PhraseSummary(const Phrase &phrase) {
 @end
 
 @implementation MerlaiPhrasePanel
+- (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
 - (NSButton *)button:(NSString *)title action:(SEL)action frame:(NSRect)frame {
-  NSButton *b = [NSButton buttonWithTitle:title target:self action:action];
-  b.frame = frame; b.bezelStyle = NSBezelStyleRounded; [_generationView addSubview:b];
+  MerlaiButton *b = [[MerlaiButton alloc] initWithFrame:frame];
+  b.title = title; b.target = self; b.action = action;
+  b.bezelStyle = NSBezelStyleRounded; [_generationView addSubview:b];
   return b;
+}
+- (NSButton *)editorButton:(NSString *)title action:(SEL)action {
+  MerlaiButton *button = [[MerlaiButton alloc] initWithFrame:NSZeroRect];
+  button.title = title; button.target = self; button.action = action;
+  return button;
 }
 - (NSTextField *)label:(NSString *)text frame:(NSRect)frame
                   size:(CGFloat)size bold:(BOOL)bold {
@@ -341,28 +376,33 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _progress.minValue = 0; _progress.maxValue = 1; _progress.indeterminate = NO;
     [_generationView addSubview:_progress];
     [self label:@"共有名" frame:NSMakeRect(16, 507, 48, 20) size:11 bold:YES];
-    _sourceName = [[NSTextField alloc] initWithFrame:NSMakeRect(64, 500, 112, 27)];
+    _sourceName = [[MerlaiTextField alloc] initWithFrame:NSMakeRect(64, 500, 112, 27)];
     _sourceName.stringValue = [NSString stringWithFormat:@"Merlai %llu",
       (unsigned long long)_instanceId];
     _sourceName.target = self; _sourceName.action = @selector(renameSource:);
     [_generationView addSubview:_sourceName];
-    _sourcePopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(184, 500, 232, 27)];
+    _sourcePopup = [[MerlaiPopUpButton alloc] initWithFrame:NSMakeRect(184, 500, 232, 27)];
+    _sourcePopup.accessibilityIdentifier = @"merlai.source";
     [_sourcePopup addItemWithTitle:@"入力元: このトラック"];
     [_generationView addSubview:_sourcePopup];
     [self button:@"入力を読み込む" action:@selector(loadSource:)
            frame:NSMakeRect(424, 500, 120, 27)];
-    _purposePopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(552, 500, 144, 27)];
+    _purposePopup = [[MerlaiPopUpButton alloc] initWithFrame:NSMakeRect(552, 500, 144, 27)];
+    _purposePopup.accessibilityIdentifier = @"merlai.purpose";
     [_purposePopup addItemsWithTitles:@[@"編集: 元フレーズ", @"生成: ベース", @"生成: コード", @"生成: 対旋律"]];
     [_generationView addSubview:_purposePopup];
     [self label:@"モデル" frame:NSMakeRect(16, 467, 44, 20) size:11 bold:YES];
-    _providerPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(64, 460, 170, 27)];
+    _providerPopup = [[MerlaiPopUpButton alloc] initWithFrame:NSMakeRect(64, 460, 170, 27)];
+    _providerPopup.accessibilityIdentifier = @"merlai.provider";
     [_providerPopup addItemWithTitle:@"内蔵ルール"];
     _providerPopup.target = self; _providerPopup.action = @selector(providerChanged:);
     [_generationView addSubview:_providerPopup];
-    _modelPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(242, 460, 170, 27)];
+    _modelPopup = [[MerlaiPopUpButton alloc] initWithFrame:NSMakeRect(242, 460, 170, 27)];
+    _modelPopup.accessibilityIdentifier = @"merlai.model";
     [_modelPopup addItemWithTitle:@"自動"];
     [_generationView addSubview:_modelPopup];
-    _endpointField = [[NSTextField alloc] initWithFrame:NSMakeRect(420, 460, 180, 27)];
+    _endpointField = [[MerlaiTextField alloc] initWithFrame:NSMakeRect(420, 460, 180, 27)];
+    _endpointField.accessibilityIdentifier = @"merlai.endpoint";
     _endpointField.placeholderString = @"ローカル互換URL（任意）";
     _endpointField.stringValue = [[NSUserDefaults standardUserDefaults]
       stringForKey:@"MerlaiModelEndpoint"] ?: @"";
@@ -375,20 +415,33 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _roll.wantsLayer = YES; _roll.layer.cornerRadius = 5;
     _roll.layer.masksToBounds = YES; [_generationView addSubview:_roll];
     [self label:@"3  候補を生成、または文章で編集" frame:NSMakeRect(16, 246, 260, 22) size:13 bold:YES];
-    _instruction = [[MerlaiPromptField alloc] initWithFrame:NSMakeRect(16, 188, 355, 52)];
-    _instruction.stringValue = @"後半だけ音数を半分に。最後の音は残して";
+    NSScrollView *promptScroll = [[NSScrollView alloc]
+      initWithFrame:NSMakeRect(16, 188, 355, 52)];
+    promptScroll.borderType = NSBezelBorder;
+    promptScroll.hasVerticalScroller = YES;
+    promptScroll.drawsBackground = YES;
+    _instruction = [[MerlaiPromptTextView alloc]
+      initWithFrame:promptScroll.contentView.bounds];
+    _instruction.string = @"後半だけ音数を半分に。最後の音は残して";
     _instruction.font = [NSFont systemFontOfSize:13];
-    _instruction.cell.wraps = YES; _instruction.cell.scrollable = YES;
-    _instruction.usesSingleLineMode = NO;
+    _instruction.verticallyResizable = YES;
+    _instruction.horizontallyResizable = NO;
+    _instruction.autoresizingMask = NSViewWidthSizable;
+    _instruction.textContainer.widthTracksTextView = YES;
+    _instruction.textContainer.containerSize = NSMakeSize(
+      promptScroll.contentSize.width, CGFLOAT_MAX);
     _instruction.placeholderString = @"作曲・編集の指示を入力";
     _instruction.delegate = self;
     _instruction.accessibilityLabel = @"生成指示";
     _instruction.accessibilityIdentifier = @"merlai.instruction";
-    [_generationView addSubview:_instruction];
+    promptScroll.documentView = _instruction;
+    [_generationView addSubview:promptScroll];
     _plan = [self button:@"変更内容を確認" action:@selector(plan:)
                    frame:NSMakeRect(379, 208, 145, 30)];
+    _plan.accessibilityIdentifier = @"merlai.plan";
     _generateButton = [self button:@"候補を生成" action:@selector(generate:)
                               frame:NSMakeRect(532, 208, 164, 30)];
+    _generateButton.accessibilityIdentifier = @"merlai.generate";
     _originalButton = [self button:@"原案を聴く" action:@selector(original:)
                              frame:NSMakeRect(16, 163, 112, 30)];
     _revisedButton = [self button:@"修正案を聴く" action:@selector(revised:)
@@ -428,7 +481,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _assistantMessage.font = [NSFont systemFontOfSize:11];
     _assistantMessage.textColor = [NSColor colorWithRed:.75 green:.86 blue:1 alpha:1];
     [_generationView addSubview:_assistantMessage];
-    _tabs = [[NSSegmentedControl alloc] initWithFrame:NSMakeRect(16, 682, 300, 28)];
+    _tabs = [[MerlaiSegmentedControl alloc] initWithFrame:NSMakeRect(16, 682, 300, 28)];
     _tabs.segmentCount = 2; [_tabs setLabel:@"生成" forSegment:0];
     [_tabs setLabel:@"MIDI編集" forSegment:1]; _tabs.selectedSegment = 0;
     _tabs.accessibilityLabel = @"表示モード";
@@ -451,13 +504,16 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _editorRoll.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [_editorRoll setEditable:YES target:self action:@selector(editorChanged:)];
     [_editorView addSubview:_editorRoll];
-    _editorRevisedButton = [NSButton buttonWithTitle:@"修正案を聴く" target:self
-                                               action:@selector(revised:)];
+    _editorRevisedButton = [[MerlaiButton alloc] initWithFrame:NSZeroRect];
+    _editorRevisedButton.title = @"修正案を聴く"; _editorRevisedButton.target = self;
+    _editorRevisedButton.action = @selector(revised:);
     _editorRevisedButton.buttonType = NSButtonTypeToggle;
-    _editorApplyButton = [NSButton buttonWithTitle:@"候補を確定" target:self action:@selector(apply:)];
+    _editorApplyButton = [[MerlaiButton alloc] initWithFrame:NSZeroRect];
+    _editorApplyButton.title = @"候補を確定"; _editorApplyButton.target = self;
+    _editorApplyButton.action = @selector(apply:);
     NSArray *editorButtons = @[
-      [NSButton buttonWithTitle:@"原案から編集用コピー" target:self action:@selector(beginManualEdit:)],
-      [NSButton buttonWithTitle:@"編集を一手戻す" target:self action:@selector(undoManualEdit:)],
+      [self editorButton:@"原案から編集用コピー" action:@selector(beginManualEdit:)],
+      [self editorButton:@"編集を一手戻す" action:@selector(undoManualEdit:)],
       _editorRevisedButton, _editorApplyButton,
     ];
     NSArray<NSString *> *editorIDs = @[@"merlai.editor-copy", @"merlai.editor-undo",
@@ -473,8 +529,9 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _auditioningRevised = NO; [self updateAuditionButtons];
     self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     __weak MerlaiPhrasePanel *weak = self;
-    _timer = [NSTimer scheduledTimerWithTimeInterval:.12 repeats:YES
+    _timer = [NSTimer scheduledTimerWithTimeInterval:.25 repeats:YES
       block:^(NSTimer *t) { [weak poll]; }];
+    _timer.tolerance = .08;
     [self refreshProviders:nil];
   }
   return self;
@@ -485,14 +542,6 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   _generationView.hidden = editing;
   _editorView.hidden = !editing;
   if (editing) [self.window makeFirstResponder:_editorRoll];
-}
-- (BOOL)control:(NSControl *)control textView:(NSTextView *)textView
- doCommandBySelector:(SEL)selector {
-  if (control == _instruction && selector == @selector(insertNewline:)) {
-    [textView insertNewlineIgnoringFieldEditor:nil];
-    return YES;
-  }
-  return NO;
 }
 - (void)setExportEnabled:(BOOL)enabled confirmed:(BOOL)confirmed {
   _midiDragView.enabled = enabled;
@@ -592,6 +641,9 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   _sourcesSignature = signature;
 }
 - (void)poll {
+  // AppKit's input method runs on this same thread. Avoid remote Audio Unit
+  // property calls while the user is composing text, especially with an IME.
+  if (self.window.firstResponder == _instruction) return;
   [self refreshSources];
   CaptureInfo info{}; UInt32 size = sizeof(info);
   if (AudioUnitGetProperty(_unit, CaptureProgress, 0, 0, &info, &size) != noErr)
@@ -714,7 +766,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   if (!_loaded) { _message.stringValue = @"先に原案を取り込んでください。"; return; }
   _draft = _current;
   int n = merlai_edit(_current.notes.data(), _current.count,
-    _current.end - _current.start, _instruction.stringValue.UTF8String,
+    _current.end - _current.start, _instruction.string.UTF8String,
     _draft.notes.data());
   if (n < 0) {
     _message.stringValue =
@@ -904,7 +956,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     @"endpoint": _endpointField.stringValue ?: @"",
     @"payload": @{
       @"version": @1,
-      @"instruction": _instruction.stringValue ?: @"",
+      @"instruction": _instruction.string ?: @"",
       @"purpose": @[@"edit", @"bass", @"chords", @"counter_melody"][purpose],
       @"musicalContext": @{@"span": @(input.end - input.start),
         @"tempo": context.tempo > 0 ? @(context.tempo) : [NSNull null],
@@ -950,7 +1002,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
 - (void)useSuggestion:(NSButton *)sender {
   NSUInteger index = sender.tag - 7100;
   if (index >= _suggestions.count) return;
-  _instruction.stringValue = _suggestions[index];
+  _instruction.string = _suggestions[index];
   [self.window makeFirstResponder:_instruction];
 }
 - (void)generateBuiltin:(id)sender {
@@ -972,7 +1024,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   auto draft = std::make_shared<Phrase>(_current);
   BOOL forceBuiltin = _forceBuiltinOnce; _forceBuiltinOnce = false;
   NSDictionary *provider = forceBuiltin ? nil : _providerPopup.selectedItem.representedObject;
-  NSString *instruction = [_instruction.stringValue copy];
+  NSString *instruction = [_instruction.string copy];
   if (provider && ![provider[@"available"] boolValue]) {
     _message.stringValue = provider[@"detail"] ?: @"選択したモデルは利用できません。"; return;
   }
