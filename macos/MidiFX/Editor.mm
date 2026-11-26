@@ -36,12 +36,14 @@
 @interface MerlaiMIDIDragView : NSView <NSDraggingSource>
 @property(nonatomic, weak) id<MerlaiMIDIDragSource> source;
 @property(nonatomic) BOOL enabled;
+@property(nonatomic) BOOL confirmed;
 @end
 
 @implementation MerlaiMIDIDragView
 - (BOOL)isFlipped { return YES; }
 - (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
 - (void)setEnabled:(BOOL)enabled { _enabled = enabled; [self setNeedsDisplay:YES]; }
+- (void)setConfirmed:(BOOL)confirmed { _confirmed = confirmed; [self setNeedsDisplay:YES]; }
 - (void)drawRect:(NSRect)dirtyRect {
   NSColor *fill = self.enabled
     ? [NSColor colorWithRed:.16 green:.43 blue:.76 alpha:1]
@@ -51,7 +53,9 @@
                                     xRadius:6 yRadius:6] fill];
   NSDictionary *style = @{NSFontAttributeName: [NSFont systemFontOfSize:12 weight:NSFontWeightSemibold],
     NSForegroundColorAttributeName: self.enabled ? NSColor.whiteColor : NSColor.disabledControlTextColor};
-  NSString *text = @"↗ 候補をLogicへドラッグ";
+  NSString *text = self.confirmed
+    ? @"↗ 確定版をLogicへドラッグ"
+    : @"↗ 未確定候補をLogicへドラッグ";
   NSSize size = [text sizeWithAttributes:style];
   [text drawAtPoint:NSMakePoint((NSWidth(self.bounds) - size.width) / 2,
                                 (NSHeight(self.bounds) - size.height) / 2)
@@ -299,7 +303,8 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   Phrase _original, _current, _draft;
   std::vector<Phrase> _undo;
   MerlaiPromptTextView *_instruction;
-  NSTextField *_message, *_captureSummary, *_activeSource, *_assistantMessage;
+  NSTextField *_message, *_captureSummary, *_activeSource;
+  NSTextView *_assistantMessage;
   NSTextField *_sourceName;
   NSTextField *_endpointField;
   MerlaiPopUpButton *_sourcePopup, *_purposePopup, *_providerPopup, *_modelPopup;
@@ -311,6 +316,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   NSProgressIndicator *_progress;
   MerlaiPianoRoll *_roll, *_editorRoll;
   NSView *_generationView, *_editorView;
+  NSView *_assistantPanel;
   MerlaiSegmentedControl *_tabs;
   NSTimer *_timer;
   NSTimer *_generationTimer;
@@ -318,6 +324,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   NSDate *_generationStarted;
   NSString *_generationStage;
   NSArray<NSString *> *_suggestions;
+  NSArray<MerlaiButton *> *_suggestionButtons;
   uint64_t _instanceId, _sourcesSignature;
   uint64_t _generationRevision;
   uint64_t _loadedSourceId, _loadedSourceRevision;
@@ -476,11 +483,44 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _message.font = [NSFont systemFontOfSize:12];
     _message.textColor = [NSColor colorWithWhite:.86 alpha:1];
     [_generationView addSubview:_message];
-    _assistantMessage = [NSTextField wrappingLabelWithString:@""];
-    _assistantMessage.frame = NSMakeRect(16, 36, 680, 20);
+    _assistantPanel = [[NSView alloc] initWithFrame:NSMakeRect(712, 126, 232, 309)];
+    _assistantPanel.wantsLayer = YES;
+    _assistantPanel.layer.backgroundColor = [NSColor colorWithWhite:.17 alpha:1].CGColor;
+    _assistantPanel.layer.cornerRadius = 6;
+    _assistantPanel.accessibilityIdentifier = @"merlai.assistant-panel";
+    [_generationView addSubview:_assistantPanel];
+    NSTextField *assistantTitle = [NSTextField labelWithString:@"LLMの提案"];
+    assistantTitle.frame = NSMakeRect(12, 279, 208, 20);
+    assistantTitle.font = [NSFont systemFontOfSize:12 weight:NSFontWeightSemibold];
+    assistantTitle.textColor = NSColor.lightGrayColor;
+    [_assistantPanel addSubview:assistantTitle];
+    NSScrollView *assistantScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(10, 102, 212, 173)];
+    assistantScroll.borderType = NSNoBorder;
+    assistantScroll.hasVerticalScroller = YES;
+    assistantScroll.drawsBackground = NO;
+    _assistantMessage = [[NSTextView alloc] initWithFrame:assistantScroll.contentView.bounds];
+    _assistantMessage.editable = NO; _assistantMessage.selectable = YES;
+    _assistantMessage.drawsBackground = NO;
     _assistantMessage.font = [NSFont systemFontOfSize:11];
     _assistantMessage.textColor = [NSColor colorWithRed:.75 green:.86 blue:1 alpha:1];
-    [_generationView addSubview:_assistantMessage];
+    _assistantMessage.string = @"候補を生成すると、モデルの説明と次の提案をここに表示します。";
+    _assistantMessage.accessibilityLabel = @"LLMからの説明";
+    _assistantMessage.accessibilityIdentifier = @"merlai.assistant-message";
+    _assistantMessage.verticallyResizable = YES; _assistantMessage.horizontallyResizable = NO;
+    _assistantMessage.textContainer.widthTracksTextView = YES;
+    assistantScroll.documentView = _assistantMessage;
+    [_assistantPanel addSubview:assistantScroll];
+    NSMutableArray *suggestionButtons = [NSMutableArray arrayWithCapacity:3];
+    for (NSUInteger i = 0; i < 3; ++i) {
+      MerlaiButton *button = [[MerlaiButton alloc] initWithFrame:NSMakeRect(10, 70 - i * 32, 212, 26)];
+      button.bezelStyle = NSBezelStyleRounded; button.target = self;
+      button.action = @selector(useSuggestion:); button.tag = 7100 + i; button.hidden = YES;
+      button.font = [NSFont systemFontOfSize:10];
+      button.accessibilityIdentifier = [NSString stringWithFormat:@"merlai.suggestion.%lu",
+        (unsigned long)i];
+      [_assistantPanel addSubview:button]; [suggestionButtons addObject:button];
+    }
+    _suggestionButtons = suggestionButtons;
     _tabs = [[MerlaiSegmentedControl alloc] initWithFrame:NSMakeRect(16, 682, 300, 28)];
     _tabs.segmentCount = 2; [_tabs setLabel:@"生成" forSegment:0];
     [_tabs setLabel:@"MIDI編集" forSegment:1]; _tabs.selectedSegment = 0;
@@ -545,11 +585,12 @@ static NSString *PhraseSummary(const Phrase &phrase) {
 }
 - (void)setExportEnabled:(BOOL)enabled confirmed:(BOOL)confirmed {
   _midiDragView.enabled = enabled;
+  _midiDragView.confirmed = confirmed;
   _saveMIDIButton.enabled = _showMIDIButton.enabled = enabled;
   _apply.title = confirmed ? @"✓ 候補を確定済み" : @"候補を確定";
   _editorApplyButton.title = _apply.title;
   _editorApplyButton.enabled = _apply.enabled;
-  if (!enabled) _lastMIDIURL = nil;
+  _lastMIDIURL = nil;
 }
 - (void)updateAuditionButtons {
   _originalButton.state = _auditioningRevised ? NSControlStateValueOff : NSControlStateValueOn;
@@ -559,8 +600,10 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   _revisedButton.title = _auditioningRevised ? @"✓ 候補を試聴中" : @"候補を聴く";
   _editorRevisedButton.title = _revisedButton.title;
 }
+- (Phrase)exportPhrase { return _hasDraft ? _draft : _current; }
 - (NSURL *)writeCandidateToURL:(NSURL *)url error:(NSError **)error {
-  std::vector<uint8_t> bytes = merlai_midi_file(_current);
+  Phrase exportPhrase = [self exportPhrase];
+  std::vector<uint8_t> bytes = merlai_midi_file(exportPhrase);
   NSData *data = [NSData dataWithBytes:bytes.data() length:bytes.size()];
   if (![data writeToURL:url options:NSDataWritingAtomic error:error]) return nil;
   _lastMIDIURL = url;
@@ -604,13 +647,13 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   [_editorRoll setProposal:_draft visible:YES];
   _apply.enabled = _revisedButton.enabled = YES;
   _editorApplyButton.enabled = _editorRevisedButton.enabled = YES;
-  [self setExportEnabled:NO confirmed:NO];
+  [self setExportEnabled:YES confirmed:NO];
 }
 - (void)editorChanged:(MerlaiPianoRoll *)sender {
   _draft = [sender proposal]; _hasDraft = true;
   [_roll setProposal:_draft visible:YES]; _apply.enabled = _revisedButton.enabled = YES;
   _editorApplyButton.enabled = _editorRevisedButton.enabled = YES;
-  [self setExportEnabled:NO confirmed:NO];
+  [self setExportEnabled:YES confirmed:NO];
 }
 - (void)undoManualEdit:(id)sender { [_editorRoll undoCandidate]; }
 - (void)dealloc { [_timer invalidate]; [_generationTimer invalidate]; [_modelTask terminate]; }
@@ -841,6 +884,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   [_modelTask terminate]; [self stopGenerationProgress];
   _generateButton.enabled = _plan.enabled = YES;
   _message.stringValue = @"生成を中止しました。既存の候補は変更していません。";
+  _assistantMessage.string = @"生成を中止しました。";
 }
 - (NSDictionary *)runBridgeStreaming:(NSDictionary *)request error:(NSString **)error {
   NSString *path = [self bridgePath];
@@ -988,15 +1032,13 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   return (int)notes.count;
 }
 - (void)showAssistantResponse:(NSDictionary *)response {
-  _assistantMessage.stringValue = response[@"message"] ?: @"";
-  for (NSView *view in [self.subviews copy]) if (view.tag >= 7100 && view.tag < 7103) [view removeFromSuperview];
+  _assistantMessage.string = response[@"message"] ?: @"モデルから説明はありませんでした。";
   _suggestions = [response[@"suggestions"] isKindOfClass:NSArray.class] ? response[@"suggestions"] : @[];
   NSUInteger count = std::min<NSUInteger>(3, _suggestions.count);
-  for (NSUInteger i = 0; i < count; ++i) {
-    NSButton *button = [self button:_suggestions[i] action:@selector(useSuggestion:)
-                             frame:NSMakeRect(16 + i * 226, 8, 218, 24)];
-    button.tag = 7100 + i; button.font = [NSFont systemFontOfSize:10];
-    button.hidden = _tabs.selectedSegment == 1;
+  for (NSUInteger i = 0; i < _suggestionButtons.count; ++i) {
+    MerlaiButton *button = _suggestionButtons[i];
+    button.hidden = i >= count;
+    if (i < count) button.title = _suggestions[i];
   }
 }
 - (void)useSuggestion:(NSButton *)sender {
@@ -1015,6 +1057,9 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   _apply.enabled = _revisedButton.enabled = NO; _hasDraft = false;
   _editorApplyButton.enabled = _editorRevisedButton.enabled = NO;
   [self setExportEnabled:NO confirmed:NO];
+  _assistantMessage.string = @"モデルの応答を待っています…";
+  _suggestions = @[];
+  for (NSButton *button in _suggestionButtons) button.hidden = YES;
   if (!_loaded) {
     _message.stringValue = @"先にこのトラックを取り込むか、別トラックの入力を読み込んでください。";
     return;
@@ -1061,6 +1106,9 @@ static NSString *PhraseSummary(const Phrase &phrase) {
       if (request) [panel stopGenerationProgress];
       panel->_generateButton.enabled = panel->_plan.enabled = YES;
       if (n < 0) {
+        panel->_assistantMessage.string = bridgeError.length
+          ? [NSString stringWithFormat:@"生成できませんでした: %@", bridgeError]
+          : @"候補を生成できませんでした。指示を変更して再試行してください。";
         if (request) {
           panel->_message.stringValue = [NSString stringWithFormat:
             @"モデル生成に失敗しました: %@ 「候補を生成」で再試行できます。",
@@ -1075,7 +1123,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
       }
       panel->_draft = *draft;
       panel->_hasDraft = true;
-      [panel setExportEnabled:NO confirmed:NO];
+      [panel setExportEnabled:YES confirmed:NO];
       [panel->_roll setProposal:panel->_draft visible:YES];
       [panel->_editorRoll setOriginal:panel->_original];
       [panel->_editorRoll setProposal:panel->_draft visible:YES];
@@ -1085,6 +1133,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
         purposeName, input.count, n];
       panel->_builtinButton.hidden = YES;
       if (modelResponse) [panel showAssistantResponse:modelResponse];
+      else panel->_assistantMessage.string = @"内蔵ルールで候補を生成しました。必要に応じてMIDI編集で調整できます。";
       panel->_apply.enabled = panel->_revisedButton.enabled = YES;
       panel->_editorApplyButton.enabled = panel->_editorRevisedButton.enabled = YES;
     });
@@ -1126,6 +1175,14 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   _plan.enabled = _originalButton.enabled = YES;
 }
 - (uint32_t)draftCountForTesting { return _hasDraft ? _draft.count : 0; }
+- (void)setCandidateForTesting:(const Phrase &)phrase {
+  _draft = phrase; _hasDraft = true;
+  [self setExportEnabled:YES confirmed:NO];
+}
+- (Phrase)exportPhraseForTesting { return [self exportPhrase]; }
+- (void)showAssistantResponseForTesting:(NSDictionary *)response {
+  [self showAssistantResponse:response];
+}
 #endif
 @end
 
@@ -1138,6 +1195,15 @@ extern "C" void merlai_ui_test_load_phrase(NSView *view, const Phrase *phrase) {
 }
 extern "C" uint32_t merlai_ui_test_draft_count(NSView *view) {
   return [(MerlaiPhrasePanel *)view draftCountForTesting];
+}
+extern "C" void merlai_ui_test_set_candidate(NSView *view, const Phrase *phrase) {
+  [(MerlaiPhrasePanel *)view setCandidateForTesting:*phrase];
+}
+extern "C" void merlai_ui_test_export_phrase(NSView *view, Phrase *phrase) {
+  *phrase = [(MerlaiPhrasePanel *)view exportPhraseForTesting];
+}
+extern "C" void merlai_ui_test_show_response(NSView *view, NSDictionary *response) {
+  [(MerlaiPhrasePanel *)view showAssistantResponseForTesting:response];
 }
 #endif
 
