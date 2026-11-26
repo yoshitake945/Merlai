@@ -303,8 +303,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   Phrase _original, _current, _draft;
   std::vector<Phrase> _undo;
   MerlaiPromptTextView *_instruction;
-  NSTextField *_message, *_captureSummary, *_activeSource;
-  NSTextView *_assistantMessage;
+  NSTextField *_message, *_captureSummary, *_activeSource, *_assistantMessage;
   NSTextField *_sourceName;
   NSTextField *_endpointField;
   MerlaiPopUpButton *_sourcePopup, *_purposePopup, *_providerPopup, *_modelPopup;
@@ -316,7 +315,6 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   NSProgressIndicator *_progress;
   MerlaiPianoRoll *_roll, *_editorRoll;
   NSView *_generationView, *_editorView;
-  NSView *_assistantPanel;
   MerlaiSegmentedControl *_tabs;
   NSTimer *_timer;
   NSTimer *_generationTimer;
@@ -503,24 +501,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _assistantMessage.drawsBackground = NO;
     _assistantMessage.font = [NSFont systemFontOfSize:11];
     _assistantMessage.textColor = [NSColor colorWithRed:.75 green:.86 blue:1 alpha:1];
-    _assistantMessage.string = @"候補を生成すると、モデルの説明と次の提案をここに表示します。";
-    _assistantMessage.accessibilityLabel = @"LLMからの説明";
-    _assistantMessage.accessibilityIdentifier = @"merlai.assistant-message";
-    _assistantMessage.verticallyResizable = YES; _assistantMessage.horizontallyResizable = NO;
-    _assistantMessage.textContainer.widthTracksTextView = YES;
-    assistantScroll.documentView = _assistantMessage;
-    [_assistantPanel addSubview:assistantScroll];
-    NSMutableArray *suggestionButtons = [NSMutableArray arrayWithCapacity:3];
-    for (NSUInteger i = 0; i < 3; ++i) {
-      MerlaiButton *button = [[MerlaiButton alloc] initWithFrame:NSMakeRect(10, 70 - i * 32, 212, 26)];
-      button.bezelStyle = NSBezelStyleRounded; button.target = self;
-      button.action = @selector(useSuggestion:); button.tag = 7100 + i; button.hidden = YES;
-      button.font = [NSFont systemFontOfSize:10];
-      button.accessibilityIdentifier = [NSString stringWithFormat:@"merlai.suggestion.%lu",
-        (unsigned long)i];
-      [_assistantPanel addSubview:button]; [suggestionButtons addObject:button];
-    }
-    _suggestionButtons = suggestionButtons;
+    [_generationView addSubview:_assistantMessage];
     _tabs = [[MerlaiSegmentedControl alloc] initWithFrame:NSMakeRect(16, 682, 300, 28)];
     _tabs.segmentCount = 2; [_tabs setLabel:@"生成" forSegment:0];
     [_tabs setLabel:@"MIDI編集" forSegment:1]; _tabs.selectedSegment = 0;
