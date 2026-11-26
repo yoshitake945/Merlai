@@ -33,7 +33,7 @@
 - (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
 @end
 
-@interface MerlaiMIDIDragView : NSView <NSDraggingSource, NSFilePromiseProviderDelegate>
+@interface MerlaiMIDIDragView : NSView <NSDraggingSource>
 @property(nonatomic, weak) id<MerlaiMIDIDragSource> source;
 @property(nonatomic) BOOL enabled;
 @property(nonatomic) BOOL confirmed;
@@ -65,14 +65,17 @@
   [self addCursorRect:self.bounds cursor:self.enabled ? NSCursor.openHandCursor : NSCursor.arrowCursor];
 }
 - (id<NSPasteboardWriting>)dragPasteboardWriter {
-  // public.midi-audio is not accepted by NSFilePromiseProvider on all macOS
-  // versions. The promised filename carries the .mid type for the receiver.
-  return [[NSFilePromiseProvider alloc] initWithFileType:UTTypeData.identifier delegate:self];
+  NSURL *url = [self.source midiDragURL];
+  if (!url) return nil;
+  NSPasteboardItem *item = [[NSPasteboardItem alloc] init];
+  [item setString:url.absoluteString forType:NSPasteboardTypeFileURL];
+  return item;
 }
 - (void)beginMIDIDrag:(NSEvent *)event {
   if (!self.enabled) return;
-  NSDraggingItem *drag = [[NSDraggingItem alloc]
-    initWithPasteboardWriter:[self dragPasteboardWriter]];
+  id<NSPasteboardWriting> writer = [self dragPasteboardWriter];
+  if (!writer) return;
+  NSDraggingItem *drag = [[NSDraggingItem alloc] initWithPasteboardWriter:writer];
   NSImage *image = [NSWorkspace.sharedWorkspace iconForContentType:UTTypeMIDI];
   NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
   [drag setDraggingFrame:NSMakeRect(point.x - 16, point.y - 16, 32, 32) contents:image];
@@ -82,23 +85,6 @@
 - (NSDragOperation)draggingSession:(NSDraggingSession *)session
  sourceOperationMaskForDraggingContext:(NSDraggingContext)context {
   return NSDragOperationCopy;
-}
-- (NSString *)filePromiseProvider:(NSFilePromiseProvider *)provider
-              fileNameForType:(NSString *)fileType {
-  return @"Merlai Candidate.mid";
-}
-- (NSOperationQueue *)operationQueueForFilePromiseProvider:(NSFilePromiseProvider *)provider {
-  return NSOperationQueue.mainQueue;
-}
-- (void)filePromiseProvider:(NSFilePromiseProvider *)provider
-           writePromiseToURL:(NSURL *)url
-           completionHandler:(void (^)(NSError * _Nullable))completionHandler {
-  NSURL *sourceURL = [self.source midiDragURL];
-  NSError *error = nil;
-  NSData *data = sourceURL ? [NSData dataWithContentsOfURL:sourceURL options:0 error:&error] : nil;
-  if (data && ![data writeToURL:url options:NSDataWritingAtomic error:&error]) data = nil;
-  completionHandler(data ? nil : (error ?: [NSError errorWithDomain:@"MerlaiMIDIDrag"
-    code:1 userInfo:@{NSLocalizedDescriptionKey: @"MIDI候補を書き出せませんでした。"}]));
 }
 @end
 
