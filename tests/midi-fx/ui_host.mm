@@ -32,6 +32,7 @@ int main() {
     window.contentView = panel;
 
     auto *prompt = (NSTextView *)find(panel, @"merlai.instruction");
+    auto *placeholder = (NSTextField *)find(panel, @"merlai.instruction-placeholder");
     auto *sourceName = (NSTextField *)find(panel, @"merlai.source-name");
     auto *endpoint = (NSTextField *)find(panel, @"merlai.endpoint");
     auto *tabs = (NSSegmentedControl *)find(panel, @"merlai.tabs");
@@ -40,8 +41,10 @@ int main() {
     NSView *roll = find(panel, @"merlai.editor-roll");
     auto *assistant = (NSTextView *)find(panel, @"merlai.assistant-message");
     NSView *drag = find(panel, @"merlai.midi-drag");
-    assert(prompt && sourceName && endpoint && tabs && generation && editor && roll && assistant && drag);
+    assert(prompt && placeholder && sourceName && endpoint && tabs && generation && editor && roll && assistant && drag);
     assert([prompt.accessibilityLabel isEqualToString:@"生成指示"]);
+    assert(placeholder.accessibilityElement == NO);
+    assert(placeholder.hidden);
     assert([roll.accessibilityLabel isEqualToString:@"MIDIノート編集領域"]);
     NSArray<NSString *> *firstMouseIDs = @[@"merlai.instruction", @"merlai.source",
       @"merlai.purpose", @"merlai.provider", @"merlai.model", @"merlai.endpoint",
@@ -66,6 +69,29 @@ int main() {
     [responder insertText:@"ストリングスを追加" replacementRange:NSMakeRange(NSNotFound, 0)];
     assert(![responder hasMarkedText]);
     assert([prompt.string isEqualToString:@"ストリングスを追加"]);
+    assert(placeholder.hidden);
+
+    prompt.string = @"";
+    [prompt layoutSubtreeIfNeeded];
+    assert(!placeholder.hidden);
+    assert([placeholder.stringValue isEqualToString:@"作曲・編集の指示を入力"]);
+    assert([prompt hitTest:NSMakePoint(NSMidX(placeholder.frame), NSMidY(placeholder.frame))] == prompt);
+    NSRect placeholderFrame = placeholder.frame;
+    for (int redraw = 0; redraw < 16; ++redraw) {
+      // Caret blinking and host refreshes invalidate only part of NSTextView.
+      // A stable placeholder remains a separate subview with a fixed frame.
+      [prompt setNeedsDisplayInRect:NSMakeRect(placeholderFrame.origin.x, 0, 2,
+                                               NSHeight(prompt.bounds))];
+      [prompt displayIfNeeded];
+      assert(NSEqualRects(placeholder.frame, placeholderFrame));
+      assert(!placeholder.hidden);
+    }
+    [responder setMarkedText:@"へんかん" selectedRange:NSMakeRange(4, 0)
+            replacementRange:NSMakeRange(NSNotFound, 0)];
+    assert(placeholder.hidden);
+    [responder unmarkText];
+    prompt.string = @"";
+    assert(!placeholder.hidden);
 
     // NSTextField uses a window-owned field editor rather than becoming the
     // first responder itself. Editing it must still pause Audio Unit polling.
@@ -74,6 +100,8 @@ int main() {
       assert([window.firstResponder isKindOfClass:NSTextView.class]);
       assert(window.firstResponder != field);
       assert(merlai_ui_test_is_editing_text(panel));
+      assert(!placeholder.hidden);
+      assert(NSEqualRects(placeholder.frame, placeholderFrame));
     }
 
     Phrase phrase{}; phrase.start = 12; phrase.end = 16; phrase.count = 2;

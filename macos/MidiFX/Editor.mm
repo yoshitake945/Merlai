@@ -88,19 +88,55 @@
 }
 @end
 
-@interface MerlaiPromptTextView : NSTextView
+@interface MerlaiPromptTextView : NSTextView {
+  NSTextField *_placeholderLabel;
+}
 @property(nonatomic, copy) NSString *placeholderString;
 @end
 @implementation MerlaiPromptTextView
 - (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
-- (void)drawRect:(NSRect)dirtyRect {
-  [super drawRect:dirtyRect];
-  if (self.string.length || !self.placeholderString.length) return;
-  NSDictionary *style = @{
-    NSFontAttributeName: self.font ?: [NSFont systemFontOfSize:13],
-    NSForegroundColorAttributeName: NSColor.placeholderTextColor,
-  };
-  [self.placeholderString drawAtPoint:NSMakePoint(5, 4) withAttributes:style];
+- (void)setPlaceholderString:(NSString *)placeholderString {
+  _placeholderString = [placeholderString copy];
+  if (!_placeholderLabel) {
+    _placeholderLabel = [NSTextField labelWithString:@""];
+    _placeholderLabel.textColor = NSColor.placeholderTextColor;
+    _placeholderLabel.drawsBackground = NO;
+    _placeholderLabel.accessibilityElement = NO;
+    _placeholderLabel.accessibilityIdentifier = @"merlai.instruction-placeholder";
+    [self addSubview:_placeholderLabel];
+  }
+  _placeholderLabel.stringValue = _placeholderString ?: @"";
+  [self updatePlaceholder];
+}
+- (void)setFont:(NSFont *)font {
+  [super setFont:font];
+  _placeholderLabel.font = font;
+  [self setNeedsLayout:YES];
+}
+- (void)setString:(NSString *)string {
+  [super setString:string];
+  [self updatePlaceholder];
+}
+- (void)didChangeText {
+  [super didChangeText];
+  [self updatePlaceholder];
+}
+- (void)updatePlaceholder {
+  _placeholderLabel.hidden = self.string.length > 0 || !_placeholderString.length;
+  [self setNeedsLayout:YES];
+}
+- (void)layout {
+  [super layout];
+  if (!_placeholderLabel) return;
+  NSPoint origin = self.textContainerOrigin;
+  CGFloat width = std::max<CGFloat>(0, NSWidth(self.bounds) - origin.x - 5);
+  NSFont *font = _placeholderLabel.font ?: [NSFont systemFontOfSize:13];
+  CGFloat height = ceil(font.ascender - font.descender + font.leading);
+  _placeholderLabel.frame = NSMakeRect(origin.x, origin.y, width, height);
+}
+- (NSView *)hitTest:(NSPoint)point {
+  NSView *hit = [super hitTest:point];
+  return hit == _placeholderLabel ? self : hit;
 }
 @end
 
