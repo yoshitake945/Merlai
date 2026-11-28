@@ -366,6 +366,9 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   NSArray<NSString *> *_suggestions;
   NSArray<MerlaiButton *> *_suggestionButtons;
   NSMutableArray<NSDictionary *> *_conversation;
+  NSMutableArray<NSDictionary *> *_candidates;
+  NSArray<MerlaiButton *> *_candidateButtons;
+  uint64_t _nextCandidateId, _selectedCandidateId;
   uint64_t _instanceId, _sourcesSignature;
   uint64_t _generationRevision;
   uint64_t _loadedSourceId, _loadedSourceRevision;
@@ -608,9 +611,28 @@ static NSString *PhraseSummary(const Phrase &phrase) {
       [NSColor colorWithWhite:.13 alpha:1].CGColor; [self addSubview:_editorView];
     NSTextField *editorTitle = [NSTextField labelWithString:
       @"青い原案とオレンジの候補を比較します。詳細なノート編集はLogicで行います。"];
-    editorTitle.frame = NSMakeRect(16, 636, 720, 22); editorTitle.textColor = NSColor.lightGrayColor;
+    editorTitle.frame = NSMakeRect(236, 636, 708, 22); editorTitle.textColor = NSColor.lightGrayColor;
     [_editorView addSubview:editorTitle];
-    _editorRoll = [[MerlaiPianoRoll alloc] initWithFrame:NSMakeRect(16, 76, 928, 550)];
+    NSTextField *candidateTitle = [NSTextField labelWithString:@"生成候補（最新5件）"];
+    candidateTitle.frame = NSMakeRect(16, 636, 204, 22);
+    candidateTitle.font = [NSFont systemFontOfSize:12 weight:NSFontWeightSemibold];
+    candidateTitle.textColor = NSColor.lightGrayColor;
+    [_editorView addSubview:candidateTitle];
+    _candidates = [NSMutableArray array];
+    NSMutableArray *candidateButtons = [NSMutableArray arrayWithCapacity:5];
+    for (NSUInteger i = 0; i < 5; ++i) {
+      MerlaiButton *button = [[MerlaiButton alloc]
+        initWithFrame:NSMakeRect(16, 550 - i * 94, 204, 82)];
+      button.bezelStyle = NSBezelStyleRounded; button.target = self;
+      button.action = @selector(selectCandidate:); button.tag = 8000 + i;
+      button.font = [NSFont systemFontOfSize:10]; button.alignment = NSTextAlignmentLeft;
+      button.hidden = YES;
+      button.accessibilityIdentifier = [NSString stringWithFormat:@"merlai.candidate.%lu",
+        (unsigned long)i];
+      [_editorView addSubview:button]; [candidateButtons addObject:button];
+    }
+    _candidateButtons = candidateButtons;
+    _editorRoll = [[MerlaiPianoRoll alloc] initWithFrame:NSMakeRect(236, 76, 708, 550)];
     _editorRoll.accessibilityElement = YES;
     _editorRoll.accessibilityRole = NSAccessibilityGroupRole;
     _editorRoll.accessibilityLabel = @"MIDI候補差分表示";
@@ -649,6 +671,65 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     [self refreshProviders:nil];
   }
   return self;
+}
+- (Phrase)phraseFromCandidate:(NSDictionary *)candidate {
+  Phrase phrase{};
+  NSData *data = candidate[@"phrase"];
+  if ([data isKindOfClass:NSData.class] && data.length == sizeof(Phrase))
+    [data getBytes:&phrase length:sizeof(Phrase)];
+  return phrase;
+}
+- (void)refreshCandidateCards {
+  for (NSUInteger slot = 0; slot < _candidateButtons.count; ++slot) {
+    MerlaiButton *button = _candidateButtons[slot];
+    if (slot >= _candidates.count) { button.hidden = YES; continue; }
+    NSUInteger index = _candidates.count - 1 - slot;
+    NSDictionary *candidate = _candidates[index];
+    button.hidden = NO;
+    button.state = [candidate[@"id"] unsignedLongLongValue] == _selectedCandidateId
+      ? NSControlStateValueOn : NSControlStateValueOff;
+    button.title = [NSString stringWithFormat:@"#%@ %@\n%@\n%@",
+      candidate[@"id"], candidate[@"purpose"], candidate[@"summary"], candidate[@"instruction"]];
+    button.accessibilityLabel = [NSString stringWithFormat:@"候補%@、%@、%@",
+      candidate[@"id"], candidate[@"purpose"], candidate[@"summary"]];
+  }
+}
+- (void)clearCandidates {
+  [_candidates removeAllObjects]; _selectedCandidateId = 0;
+  [self refreshCandidateCards];
+}
+- (void)addCandidate:(const Phrase &)phrase purpose:(NSString *)purpose
+          instruction:(NSString *)instruction explanation:(NSString *)explanation {
+  NSData *data = [NSData dataWithBytes:&phrase length:sizeof(Phrase)];
+  NSDictionary *candidate = @{@"id": @(++_nextCandidateId), @"phrase": data,
+    @"purpose": purpose ?: @"編集", @"summary": PhraseSummary(phrase),
+    @"instruction": instruction.length ? instruction : @"指示なし",
+    @"explanation": explanation ?: @"", @"sourceId": @(_loadedSourceId),
+    @"sourceRevision": @(_loadedSourceRevision)};
+  [_candidates addObject:candidate];
+  if (_candidates.count > 5) [_candidates removeObjectAtIndex:0];
+  _selectedCandidateId = [candidate[@"id"] unsignedLongLongValue];
+  [self refreshCandidateCards];
+}
+- (void)selectCandidate:(NSButton *)sender {
+  NSUInteger slot = sender.tag - 8000;
+  if (slot >= _candidates.count) return;
+  NSDictionary *candidate = _candidates[_candidates.count - 1 - slot];
+  if ([candidate[@"sourceId"] unsignedLongLongValue] != _loadedSourceId ||
+      [candidate[@"sourceRevision"] unsignedLongLongValue] != _loadedSourceRevision) {
+    _message.stringValue = @"入力元が更新されています。この候補は確定できません。"; return;
+  }
+  _selectedCandidateId = [candidate[@"id"] unsignedLongLongValue];
+  _draft = [self phraseFromCandidate:candidate]; _hasDraft = _draft.count > 0;
+  [_roll setProposal:_draft visible:_hasDraft];
+  [_editorRoll setOriginal:_original]; [_editorRoll setProposal:_draft visible:_hasDraft];
+  _apply.enabled = _revisedButton.enabled = _hasDraft;
+  _editorApplyButton.enabled = _editorRevisedButton.enabled = _hasDraft;
+  [self setExportEnabled:_hasDraft confirmed:NO];
+  [self refreshCandidateCards];
+  _message.stringValue = [NSString stringWithFormat:
+    @"候補#%@を選択: 原案 %u音 → 候補 %u音。試聴してから確定してください。",
+    candidate[@"id"], _original.count, _draft.count];
 }
 - (void)changeTab:(NSSegmentedControl *)sender {
   BOOL editing = sender.selectedSegment == 1;
@@ -800,6 +881,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
       AudioUnitSetProperty(_unit, PlaybackMode, 0, 0, &originalMode, sizeof(originalMode));
       ++_generationRevision; _generateButton.enabled = YES; _hasDraft = false;
       _current = _original; _loaded = true; _progress.doubleValue = 1;
+      [self clearCandidates];
       _loadedSourceId = _instanceId; _loadedSourceRevision = 0;
       _loadedSourceName = _sourceName.stringValue; _loadedSourceKind = @"MIDI";
       _captureSummary.stringValue = [NSString stringWithFormat:
@@ -844,6 +926,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   AudioUnitSetProperty(_unit, PlaybackMode, 0, 0, &originalMode, sizeof(originalMode));
   ++_generationRevision; _generateButton.enabled = YES; _hasDraft = false;
   _original = _current = linked; _loaded = true; _undo.clear();
+  [self clearCandidates];
   _loadedSourceId = source; _loadedSourceRevision = revision;
   _loadedSourceName = represented[@"name"] ?: @"別トラック";
   _loadedSourceKind = represented[@"kind"] ?: @"MIDI";
@@ -867,6 +950,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   if (AudioUnitSetProperty(_unit, Arm, 0, 0, &value, sizeof(value)) == noErr) {
     ++_generationRevision; _generateButton.enabled = YES;
     _loaded = false; _hasDraft = false; _undo.clear(); [_roll clear]; [_editorRoll clear];
+    [self clearCandidates];
     _loadedSourceId = _loadedSourceRevision = 0; _loadedSourceName = nil; _loadedSourceKind = nil;
     _activeSource.stringValue = @"使用中: 取り込み待機中";
     _apply.enabled = _plan.enabled = _originalButton.enabled =
@@ -910,6 +994,8 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   }
   _draft.count = n; [_roll setProposal:_draft visible:YES];
   [_editorRoll setOriginal:_original]; [_editorRoll setProposal:_draft visible:YES];
+  [self addCandidate:_draft purpose:@"編集" instruction:_instruction.string
+         explanation:@"内蔵ルールによるプレビュー"];
   _message.stringValue = [NSString stringWithFormat:
     @"プレビュー: 青 %u音 → オレンジ %d音。よければ候補を確定してください。",
     _current.count, n];
@@ -1261,6 +1347,10 @@ static NSString *PhraseSummary(const Phrase &phrase) {
         @"%@候補: 青 %u音 → オレンジ %d音。適用前のプレビューです。",
         purposeName, input.count, n];
       panel->_builtinButton.hidden = YES;
+      NSString *explanation = modelResponse[@"message"] ?:
+        @"内蔵ルールで候補を生成しました。";
+      [panel addCandidate:panel->_draft purpose:purposeName instruction:instruction
+              explanation:explanation];
       if (modelResponse) [panel showAssistantResponse:modelResponse];
       else [panel appendConversationRole:@"assistant"
         content:@"内蔵ルールで候補を生成しました。必要なら指示を変えて再生成できます。"];
@@ -1301,6 +1391,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
 #if defined(MERLAI_UI_TESTING)
 - (void)loadPhraseForTesting:(const Phrase &)phrase {
   _original = _current = phrase; _loaded = true; _hasDraft = false; _undo.clear();
+  _loadedSourceId = 1; _loadedSourceRevision = 1; [self clearCandidates];
   [_roll setOriginal:phrase]; [_editorRoll setOriginal:phrase];
   _plan.enabled = _originalButton.enabled = YES;
 }
@@ -1314,6 +1405,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
 - (NSUInteger)sourceRefreshesForTesting { return _testSourceRefreshes; }
 - (void)setCandidateForTesting:(const Phrase &)phrase {
   _draft = phrase; _hasDraft = true;
+  [self addCandidate:phrase purpose:@"テスト" instruction:@"候補を作る" explanation:@""];
   [self setExportEnabled:YES confirmed:NO];
 }
 - (Phrase)exportPhraseForTesting { return [self exportPhrase]; }
@@ -1328,6 +1420,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   [self appendConversationRole:role content:content];
 }
 - (NSUInteger)conversationCountForTesting { return _conversation.count; }
+- (NSUInteger)candidateCountForTesting { return _candidates.count; }
 #endif
 @end
 
@@ -1378,6 +1471,9 @@ extern "C" void merlai_ui_test_append_conversation(NSView *view, NSString *role,
 }
 extern "C" NSUInteger merlai_ui_test_conversation_count(NSView *view) {
   return [(MerlaiPhrasePanel *)view conversationCountForTesting];
+}
+extern "C" NSUInteger merlai_ui_test_candidate_count(NSView *view) {
+  return [(MerlaiPhrasePanel *)view candidateCountForTesting];
 }
 #endif
 
