@@ -665,13 +665,14 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     NSArray *editorButtons = @[
       [self editorButton:@"原案を聴く" action:@selector(original:)],
       [self editorButton:@"指示を修正" action:@selector(returnToInstruction:)],
+      [self editorButton:@"前案と比較" action:@selector(compareCandidate:)],
       _editorRevisedButton, _editorApplyButton,
     ];
     NSArray<NSString *> *editorIDs = @[@"merlai.editor-copy", @"merlai.editor-undo",
-      @"merlai.editor-audition", @"merlai.editor-confirm"];
+      @"merlai.editor-compare", @"merlai.editor-audition", @"merlai.editor-confirm"];
     for (NSUInteger i = 0; i < editorButtons.count; ++i) {
       NSButton *button = editorButtons[i];
-      button.frame = NSMakeRect(16 + i * 180, 28, 170, 32);
+      button.frame = NSMakeRect(16 + i * 184, 28, 174, 32);
       button.bezelStyle = NSBezelStyleRounded;
       button.accessibilityIdentifier = editorIDs[i];
       [_editorView addSubview:button];
@@ -745,6 +746,48 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   _message.stringValue = [NSString stringWithFormat:
     @"候補#%@を選択: 原案 %u音 → 候補 %u音。試聴してから確定してください。",
     candidate[@"id"], _original.count, _draft.count];
+}
+- (void)compareCandidate:(id)sender {
+  if (!_selectedCandidateId || !_candidates.count) {
+    _message.stringValue = @"比較する候補カードを選んでください。"; return;
+  }
+  NSUInteger selectedIndex = NSNotFound;
+  for (NSUInteger i = 0; i < _candidates.count; ++i)
+    if ([_candidates[i][@"id"] unsignedLongLongValue] == _selectedCandidateId) {
+      selectedIndex = i; break;
+    }
+  if (selectedIndex == NSNotFound) return;
+  NSDictionary *selected = _candidates[selectedIndex];
+  Phrase candidate = [self phraseFromCandidate:selected];
+  Phrase baseline = selectedIndex > 0 ? [self phraseFromCandidate:_candidates[selectedIndex - 1]]
+                                      : _original;
+  NSString *baselineName = selectedIndex > 0
+    ? [NSString stringWithFormat:@"候補#%@", _candidates[selectedIndex - 1][@"id"]]
+    : @"原案";
+  bool matchedCandidate[Capacity]{};
+  uint32_t retained = 0;
+  for (uint32_t i = 0; i < baseline.count; ++i) {
+    for (uint32_t j = 0; j < candidate.count; ++j) {
+      if (matchedCandidate[j]) continue;
+      const Note &a = baseline.notes[i], &b = candidate.notes[j];
+      if (a.pitch == b.pitch && a.channel == b.channel &&
+          std::abs(a.start - b.start) < .000001 && std::abs(a.end - b.end) < .000001) {
+        matchedCandidate[j] = true; ++retained; break;
+      }
+    }
+  }
+  double baselineVelocity = 0, candidateVelocity = 0;
+  for (uint32_t i = 0; i < baseline.count; ++i) baselineVelocity += baseline.notes[i].velocity;
+  for (uint32_t i = 0; i < candidate.count; ++i) candidateVelocity += candidate.notes[i].velocity;
+  if (baseline.count) baselineVelocity /= baseline.count;
+  if (candidate.count) candidateVelocity /= candidate.count;
+  NSString *comparison = [NSString stringWithFormat:
+    @"候補比較 — %@と候補#%@: 維持 %u音・追加 %u音・削除 %u音。音域 %@ → %@。平均ベロシティ %+.0f。",
+    baselineName, selected[@"id"], retained, candidate.count - retained,
+    baseline.count - retained, PhraseSummary(baseline), PhraseSummary(candidate),
+    candidateVelocity - baselineVelocity];
+  [self appendConversationRole:@"assistant" content:comparison];
+  _message.stringValue = @"選択候補を前案とローカル比較しました。確定状態は変更していません。";
 }
 - (void)changeTab:(NSSegmentedControl *)sender {
   BOOL editing = sender.selectedSegment == 1;
