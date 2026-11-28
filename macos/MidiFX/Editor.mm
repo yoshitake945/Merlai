@@ -365,6 +365,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   NSString *_generationStage;
   NSArray<NSString *> *_suggestions;
   NSArray<MerlaiButton *> *_suggestionButtons;
+  NSMutableArray<NSDictionary *> *_conversation;
   uint64_t _instanceId, _sourcesSignature;
   uint64_t _generationRevision;
   uint64_t _loadedSourceId, _loadedSourceRevision;
@@ -561,7 +562,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _assistantPanel.layer.cornerRadius = 6;
     _assistantPanel.accessibilityIdentifier = @"merlai.assistant-panel";
     [_generationView addSubview:_assistantPanel];
-    NSTextField *assistantTitle = [NSTextField labelWithString:@"LLMの提案"];
+    NSTextField *assistantTitle = [NSTextField labelWithString:@"制作チャット"];
     assistantTitle.frame = NSMakeRect(12, 279, 208, 20);
     assistantTitle.font = [NSFont systemFontOfSize:12 weight:NSFontWeightSemibold];
     assistantTitle.textColor = NSColor.lightGrayColor;
@@ -575,8 +576,9 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _assistantMessage.drawsBackground = NO;
     _assistantMessage.font = [NSFont systemFontOfSize:11];
     _assistantMessage.textColor = [NSColor colorWithRed:.75 green:.86 blue:1 alpha:1];
-    _assistantMessage.string = @"候補を生成すると、モデルの説明と次の提案をここに表示します。";
-    _assistantMessage.accessibilityLabel = @"LLMからの説明";
+    _conversation = [NSMutableArray array];
+    _assistantMessage.string = @"指示とモデルの説明が、ここに会話として残ります。";
+    _assistantMessage.accessibilityLabel = @"制作チャット履歴";
     _assistantMessage.accessibilityIdentifier = @"merlai.assistant-message";
     _assistantMessage.verticallyResizable = YES; _assistantMessage.horizontallyResizable = NO;
     _assistantMessage.textContainer.widthTracksTextView = YES;
@@ -1105,6 +1107,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
       @"keyRoot": keyScale[@"root"] ?: [NSNull null],
       @"scale": keyScale[@"scale"] ?: @0,
       @"targetSpan": @(targetSpan), @"variation": @1,
+      @"conversation": [_conversation copy],
     }
   };
 }
@@ -1128,8 +1131,29 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   }
   return (int)notes.count;
 }
+- (void)renderConversation {
+  if (!_conversation.count) {
+    _assistantMessage.string = @"指示とモデルの説明が、ここに会話として残ります。";
+    return;
+  }
+  NSMutableArray<NSString *> *lines = [NSMutableArray arrayWithCapacity:_conversation.count];
+  for (NSDictionary *turn in _conversation) {
+    NSString *speaker = [turn[@"role"] isEqual:@"assistant"] ? @"Merlai" : @"あなた";
+    [lines addObject:[NSString stringWithFormat:@"%@: %@", speaker, turn[@"content"] ?: @""]];
+  }
+  _assistantMessage.string = [lines componentsJoinedByString:@"\n\n"];
+  [_assistantMessage scrollRangeToVisible:NSMakeRange(_assistantMessage.string.length, 0)];
+}
+- (void)appendConversationRole:(NSString *)role content:(NSString *)content {
+  if (!content.length) return;
+  [_conversation addObject:@{@"role": role, @"content": content}];
+  if (_conversation.count > 12)
+    [_conversation removeObjectsInRange:NSMakeRange(0, _conversation.count - 12)];
+  [self renderConversation];
+}
 - (void)showAssistantResponse:(NSDictionary *)response {
-  _assistantMessage.string = response[@"message"] ?: @"モデルから説明はありませんでした。";
+  [self appendConversationRole:@"assistant"
+                       content:response[@"message"] ?: @"モデルから説明はありませんでした。"];
   _suggestions = [response[@"suggestions"] isKindOfClass:NSArray.class] ? response[@"suggestions"] : @[];
   NSUInteger count = std::min<NSUInteger>(3, _suggestions.count);
   for (NSUInteger i = 0; i < _suggestionButtons.count; ++i) {
@@ -1154,7 +1178,6 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   _apply.enabled = _revisedButton.enabled = NO; _hasDraft = false;
   _editorApplyButton.enabled = _editorRevisedButton.enabled = NO;
   [self setExportEnabled:NO confirmed:NO];
-  _assistantMessage.string = @"モデルの応答を待っています…";
   _suggestions = @[];
   for (NSButton *button in _suggestionButtons) button.hidden = YES;
   if (!_loaded) {
@@ -1182,6 +1205,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     [alert addButtonWithTitle:@"送信して生成"]; [alert addButtonWithTitle:@"キャンセル"];
     if ([alert runModal] != NSAlertFirstButtonReturn) return;
   }
+  [self appendConversationRole:@"user" content:instruction];
   NSDictionary *request = provider ? [self generationRequestFor:input purpose:purpose] : nil;
   uint64_t revision = ++_generationRevision;
   _generateButton.enabled = _plan.enabled = NO;
@@ -1211,9 +1235,9 @@ static NSString *PhraseSummary(const Phrase &phrase) {
       if (request) [panel stopGenerationProgress];
       panel->_generateButton.enabled = panel->_plan.enabled = YES;
       if (n < 0) {
-        panel->_assistantMessage.string = bridgeError.length
+        [panel appendConversationRole:@"assistant" content:bridgeError.length
           ? [NSString stringWithFormat:@"生成できませんでした: %@", bridgeError]
-          : @"候補を生成できませんでした。指示を変更して再試行してください。";
+          : @"候補を生成できませんでした。指示を変更して再試行してください。"];
         if (request) {
           panel->_message.stringValue = [NSString stringWithFormat:
             @"モデル生成に失敗しました: %@ 「候補を生成」で再試行できます。",
@@ -1238,7 +1262,8 @@ static NSString *PhraseSummary(const Phrase &phrase) {
         purposeName, input.count, n];
       panel->_builtinButton.hidden = YES;
       if (modelResponse) [panel showAssistantResponse:modelResponse];
-      else panel->_assistantMessage.string = @"内蔵ルールで候補を生成しました。必要に応じてMIDI編集で調整できます。";
+      else [panel appendConversationRole:@"assistant"
+        content:@"内蔵ルールで候補を生成しました。必要なら指示を変えて再生成できます。"];
       panel->_apply.enabled = panel->_revisedButton.enabled = YES;
       panel->_editorApplyButton.enabled = panel->_editorRevisedButton.enabled = YES;
     });
@@ -1299,6 +1324,10 @@ static NSString *PhraseSummary(const Phrase &phrase) {
 - (void)showAssistantResponseForTesting:(NSDictionary *)response {
   [self showAssistantResponse:response];
 }
+- (void)appendConversationForTesting:(NSString *)role content:(NSString *)content {
+  [self appendConversationRole:role content:content];
+}
+- (NSUInteger)conversationCountForTesting { return _conversation.count; }
 #endif
 @end
 
@@ -1342,6 +1371,13 @@ extern "C" id<NSPasteboardWriting> merlai_ui_test_drag_writer(NSView *view) {
 }
 extern "C" void merlai_ui_test_show_response(NSView *view, NSDictionary *response) {
   [(MerlaiPhrasePanel *)view showAssistantResponseForTesting:response];
+}
+extern "C" void merlai_ui_test_append_conversation(NSView *view, NSString *role,
+                                                       NSString *content) {
+  [(MerlaiPhrasePanel *)view appendConversationForTesting:role content:content];
+}
+extern "C" NSUInteger merlai_ui_test_conversation_count(NSView *view) {
+  return [(MerlaiPhrasePanel *)view conversationCountForTesting];
 }
 #endif
 
