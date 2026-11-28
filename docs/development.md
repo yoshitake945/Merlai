@@ -12,3 +12,5 @@
 共通の最小確認は `cargo fmt --check` と `cargo test --locked` です。macOS固有の変更はApple Silicon実機で対象のビルドスクリプトを実行し、署名と実際の画面・音声・MIDI出力を確認します。
 
 開発支援用のCodex SKILLは `.agents/skills/` にあります。SKILLは判断と検証の入口だけを持ち、詳細手順は上記文書を参照します。
+
+機能の導入順序とプロダクト上の責務は[プロダクトロードマップ](product-roadmap.md)を正本とします。

@@ -151,6 +151,7 @@ pub enum GenerationPurpose {
     Bass = 1,
     Chords = 2,
     CounterMelody = 3,
+    Continue = 4,
 }
 
 /// Optional non-realtime generator inserted after the captured phrase has
@@ -347,8 +348,93 @@ fn generate(input: &[Note], span: f64, purpose: GenerationPurpose) -> Result<Vec
                 channel: note.channel,
             })
             .collect(),
+        GenerationPurpose::Continue => sorted,
     };
     (!generated.is_empty()).then_some(generated).ok_or(())
+}
+
+fn scale_intervals(scale: u32) -> &'static [u8] {
+    match scale {
+        1 => &[0, 2, 4, 5, 7, 9, 11],
+        2 => &[0, 2, 3, 5, 7, 8, 10],
+        _ => &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    }
+}
+
+fn quantize_pitch(pitch: u8, key_root: u32, scale: u32) -> u8 {
+    if key_root > 11 || scale == 0 {
+        return pitch;
+    }
+    let allowed = scale_intervals(scale);
+    (0..=127)
+        .min_by_key(|candidate| {
+            let class = (*candidate as u32 + 12 - key_root) % 12;
+            let outside = !allowed.contains(&(class as u8));
+            (outside, (*candidate as i16 - pitch as i16).unsigned_abs())
+        })
+        .unwrap_or(pitch)
+}
+
+fn generate_context(
+    primary: &[Note],
+    harmony: &[Note],
+    source_span: f64,
+    purpose: GenerationPurpose,
+    target_span: f64,
+    key_root: u32,
+    scale: u32,
+    variation: u32,
+) -> Result<Vec<Note>, ()> {
+    if primary.is_empty()
+        || !source_span.is_finite()
+        || source_span <= 0.
+        || !target_span.is_finite()
+        || target_span <= 0.
+    {
+        return Err(());
+    }
+    let mut result = if purpose == GenerationPurpose::Continue {
+        let mut source = primary.to_vec();
+        source.sort_by(|a, b| a.start.total_cmp(&b.start).then(a.pitch.cmp(&b.pitch)));
+        let mut output = Vec::new();
+        let repeats = (target_span / source_span).ceil() as usize;
+        for repeat in 0..repeats {
+            let offset = repeat as f64 * source_span;
+            let transpose = if variation > 0 && repeat % 2 == 1 {
+                2
+            } else {
+                0
+            };
+            for note in &source {
+                if note.start + offset >= target_span || output.len() >= 2048 {
+                    continue;
+                }
+                let mut copy = *note;
+                copy.start += offset;
+                copy.end = (copy.end + offset).min(target_span);
+                copy.pitch = quantize_pitch(copy.pitch.saturating_add(transpose), key_root, scale);
+                output.push(copy);
+            }
+        }
+        output
+    } else {
+        let basis = if !harmony.is_empty()
+            && matches!(purpose, GenerationPurpose::Bass | GenerationPurpose::Chords)
+        {
+            harmony
+        } else {
+            primary
+        };
+        generate(basis, source_span, purpose)?
+    };
+    if purpose != GenerationPurpose::Edit {
+        for note in &mut result {
+            note.pitch = quantize_pitch(note.pitch, key_root, scale);
+        }
+    }
+    (!result.is_empty() && result.len() <= 2048)
+        .then_some(result)
+        .ok_or(())
 }
 
 fn valid_candidate(notes: &[Note], span: f64) -> bool {
@@ -446,6 +532,64 @@ pub unsafe extern "C" fn merlai_generate(
             result.len() as i32
         }
         _ => -1,
+    }
+}
+
+/// Generates from a primary phrase plus optional harmonic context. The legacy
+/// `merlai_generate` entry point remains available for v1 callers.
+/// # Safety
+/// Callers supply initialized note arrays and at least 2048 output slots.
+#[no_mangle]
+pub unsafe extern "C" fn merlai_generate_context(
+    primary: *const Note,
+    primary_count: usize,
+    harmony: *const Note,
+    harmony_count: usize,
+    source_span: f64,
+    purpose: u32,
+    target_span: f64,
+    key_root: u32,
+    scale: u32,
+    variation: u32,
+    output: *mut Note,
+) -> i32 {
+    if primary_count == 0
+        || primary_count > 2048
+        || harmony_count > 2048
+        || primary.is_null()
+        || output.is_null()
+        || (harmony_count > 0 && harmony.is_null())
+    {
+        return -1;
+    }
+    let purpose = match purpose {
+        0 => GenerationPurpose::Edit,
+        1 => GenerationPurpose::Bass,
+        2 => GenerationPurpose::Chords,
+        3 => GenerationPurpose::CounterMelody,
+        4 => GenerationPurpose::Continue,
+        _ => return -1,
+    };
+    let harmony = if harmony_count == 0 {
+        &[]
+    } else {
+        std::slice::from_raw_parts(harmony, harmony_count)
+    };
+    match generate_context(
+        std::slice::from_raw_parts(primary, primary_count),
+        harmony,
+        source_span,
+        purpose,
+        target_span,
+        key_root,
+        scale,
+        variation,
+    ) {
+        Ok(result) => {
+            std::ptr::copy_nonoverlapping(result.as_ptr(), output, result.len());
+            result.len() as i32
+        }
+        Err(()) => -1,
     }
 }
 
@@ -547,6 +691,44 @@ mod tests {
         let groove = generate(&drum_onsets, 1., GenerationPurpose::Bass).unwrap();
         assert_eq!(groove.len(), 1);
         assert_eq!(groove[0].start, 0.);
+    }
+
+    #[test]
+    fn continues_a_phrase_with_key_scale_and_harmonic_context() {
+        let primary = [
+            Note {
+                start: 0.,
+                end: 0.5,
+                pitch: 61,
+                velocity: 80,
+                channel: 0,
+            },
+            Note {
+                start: 1.,
+                end: 1.5,
+                pitch: 64,
+                velocity: 80,
+                channel: 0,
+            },
+        ];
+        let continued =
+            generate_context(&primary, &[], 2., GenerationPurpose::Continue, 6., 0, 1, 1).unwrap();
+        assert_eq!(continued.len(), 6);
+        assert!(continued
+            .iter()
+            .all(|note| [0, 2, 4, 5, 7, 9, 11].contains(&(note.pitch % 12))));
+        assert!(continued.iter().all(|note| note.end <= 6.));
+
+        let harmony = [Note {
+            start: 0.,
+            end: 2.,
+            pitch: 67,
+            velocity: 70,
+            channel: 0,
+        }];
+        let bass =
+            generate_context(&primary, &harmony, 2., GenerationPurpose::Bass, 2., 0, 1, 0).unwrap();
+        assert_eq!(bass[0].pitch % 12, 7);
     }
 
     #[test]

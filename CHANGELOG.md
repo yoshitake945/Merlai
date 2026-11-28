@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Logicプラグインへキー／スケール付きの「続きを生成」を追加し、Context v2の基盤を導入しました。
+- 手動MIDI編集を読み取り専用の候補差分へ置き換え、詳細編集をLogicへ集約しました。
+
 - Generatorの候補を適用前に試聴し、採用時だけUndo履歴へ追加できるようにしました。
 - Codex/Claude CLIとローカルOpenAI互換モデルを検出・選択するModel Bridgeを追加しました。
 - Codexのstrict JSON Schemaを修正し、使用中のMIDI入力元と音域を明示しました。
