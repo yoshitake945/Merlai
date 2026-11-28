@@ -7,6 +7,7 @@
 extern "C" NSView *merlai_ui_test_create(void);
 extern "C" void merlai_ui_test_load_phrase(NSView *, const Phrase *);
 extern "C" uint32_t merlai_ui_test_draft_count(NSView *);
+extern "C" BOOL merlai_ui_test_is_editing_text(NSView *);
 extern "C" void merlai_ui_test_set_candidate(NSView *, const Phrase *);
 extern "C" void merlai_ui_test_export_phrase(NSView *, Phrase *);
 extern "C" NSURL *merlai_ui_test_drag_url(NSView *);
@@ -31,13 +32,15 @@ int main() {
     window.contentView = panel;
 
     auto *prompt = (NSTextView *)find(panel, @"merlai.instruction");
+    auto *sourceName = (NSTextField *)find(panel, @"merlai.source-name");
+    auto *endpoint = (NSTextField *)find(panel, @"merlai.endpoint");
     auto *tabs = (NSSegmentedControl *)find(panel, @"merlai.tabs");
     NSView *generation = find(panel, @"merlai.generation");
     NSView *editor = find(panel, @"merlai.editor");
     NSView *roll = find(panel, @"merlai.editor-roll");
     auto *assistant = (NSTextView *)find(panel, @"merlai.assistant-message");
     NSView *drag = find(panel, @"merlai.midi-drag");
-    assert(prompt && tabs && generation && editor && roll && assistant && drag);
+    assert(prompt && sourceName && endpoint && tabs && generation && editor && roll && assistant && drag);
     assert([prompt.accessibilityLabel isEqualToString:@"生成指示"]);
     assert([roll.accessibilityLabel isEqualToString:@"MIDIノート編集領域"]);
     NSArray<NSString *> *firstMouseIDs = @[@"merlai.instruction", @"merlai.source",
@@ -53,6 +56,7 @@ int main() {
       assert(control && [control acceptsFirstMouse:probe]);
     }
     assert([window makeFirstResponder:prompt]);
+    assert(merlai_ui_test_is_editing_text(panel));
     id responder = window.firstResponder;
     assert([responder conformsToProtocol:@protocol(NSTextInputClient)]);
     [prompt selectAll:nil];
@@ -62,6 +66,15 @@ int main() {
     [responder insertText:@"ストリングスを追加" replacementRange:NSMakeRange(NSNotFound, 0)];
     assert(![responder hasMarkedText]);
     assert([prompt.string isEqualToString:@"ストリングスを追加"]);
+
+    // NSTextField uses a window-owned field editor rather than becoming the
+    // first responder itself. Editing it must still pause Audio Unit polling.
+    for (NSTextField *field in @[sourceName, endpoint]) {
+      assert([window makeFirstResponder:field]);
+      assert([window.firstResponder isKindOfClass:NSTextView.class]);
+      assert(window.firstResponder != field);
+      assert(merlai_ui_test_is_editing_text(panel));
+    }
 
     Phrase phrase{}; phrase.start = 12; phrase.end = 16; phrase.count = 2;
     phrase.notes[0] = {0, 1, 60, 90, 0};

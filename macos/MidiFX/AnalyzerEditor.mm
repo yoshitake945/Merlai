@@ -3,6 +3,16 @@
 #import <AudioUnit/AUCocoaUIView.h>
 #import <Cocoa/Cocoa.h>
 
+static BOOL MerlaiAnalyzerIsEditingTextInView(NSView *root) {
+  NSResponder *responder = root.window.firstResponder;
+  if (![responder isKindOfClass:NSTextView.class]) return NO;
+  NSTextView *textView = (NSTextView *)responder;
+  if (textView == root || [textView isDescendantOf:root]) return YES;
+  id delegate = textView.delegate;
+  return [delegate isKindOfClass:NSView.class] &&
+    (delegate == root || [(NSView *)delegate isDescendantOf:root]);
+}
+
 @interface MerlaiAnalyzerPanel : NSView {
   AudioUnit _unit;
   uint64_t _instanceId;
@@ -73,6 +83,9 @@
   }
 }
 - (void)poll {
+  // Avoid Audio Unit calls while AppKit's shared field editor is handling
+  // typing or IME composition for the name field.
+  if (MerlaiAnalyzerIsEditingTextInView(self)) return;
   CaptureInfo info{}; UInt32 size = sizeof(info);
   if (AudioUnitGetProperty(_unit, CaptureProgress, 0, 0, &info, &size) != noErr)
     return;

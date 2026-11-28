@@ -104,6 +104,19 @@
 }
 @end
 
+static BOOL MerlaiIsEditingTextInView(NSView *root) {
+  NSResponder *responder = root.window.firstResponder;
+  if (![responder isKindOfClass:NSTextView.class]) return NO;
+  NSTextView *textView = (NSTextView *)responder;
+  if (textView == root || [textView isDescendantOf:root]) return YES;
+
+  // NSTextField edits through the window's shared field editor, which is not
+  // a descendant of the control. Its delegate identifies the owning field.
+  id delegate = textView.delegate;
+  return [delegate isKindOfClass:NSView.class] &&
+    (delegate == root || [(NSView *)delegate isDescendantOf:root]);
+}
+
 static NSString *BeatLabel(double beat) {
   NSInteger bar = (NSInteger)floor(beat / 4.0) + 1;
   NSInteger within = (NSInteger)floor(fmod(std::max(0.0, beat), 4.0)) + 1;
@@ -390,6 +403,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     [_generationView addSubview:_progress];
     [self label:@"共有名" frame:NSMakeRect(16, 507, 48, 20) size:11 bold:YES];
     _sourceName = [[MerlaiTextField alloc] initWithFrame:NSMakeRect(64, 500, 112, 27)];
+    _sourceName.accessibilityIdentifier = @"merlai.source-name";
     _sourceName.stringValue = [NSString stringWithFormat:@"Merlai %llu",
       (unsigned long long)_instanceId];
     _sourceName.target = self; _sourceName.action = @selector(renameSource:);
@@ -691,8 +705,10 @@ static NSString *PhraseSummary(const Phrase &phrase) {
 }
 - (void)poll {
   // AppKit's input method runs on this same thread. Avoid remote Audio Unit
-  // property calls while the user is composing text, especially with an IME.
-  if (self.window.firstResponder == _instruction) return;
+  // property calls while the user is editing text, especially with an IME.
+  // NSTextField uses a shared field editor, so comparing the first responder
+  // with an individual control does not cover all text boxes in this view.
+  if (MerlaiIsEditingTextInView(self)) return;
   [self refreshSources];
   CaptureInfo info{}; UInt32 size = sizeof(info);
   if (AudioUnitGetProperty(_unit, CaptureProgress, 0, 0, &info, &size) != noErr)
@@ -1181,6 +1197,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   _plan.enabled = _originalButton.enabled = YES;
 }
 - (uint32_t)draftCountForTesting { return _hasDraft ? _draft.count : 0; }
+- (BOOL)isEditingTextForTesting { return MerlaiIsEditingTextInView(self); }
 - (void)setCandidateForTesting:(const Phrase &)phrase {
   _draft = phrase; _hasDraft = true;
   [self setExportEnabled:YES confirmed:NO];
@@ -1205,6 +1222,9 @@ extern "C" void merlai_ui_test_load_phrase(NSView *view, const Phrase *phrase) {
 }
 extern "C" uint32_t merlai_ui_test_draft_count(NSView *view) {
   return [(MerlaiPhrasePanel *)view draftCountForTesting];
+}
+extern "C" BOOL merlai_ui_test_is_editing_text(NSView *view) {
+  return [(MerlaiPhrasePanel *)view isEditingTextForTesting];
 }
 extern "C" void merlai_ui_test_set_candidate(NSView *view, const Phrase *phrase) {
   [(MerlaiPhrasePanel *)view setCandidateForTesting:*phrase];
