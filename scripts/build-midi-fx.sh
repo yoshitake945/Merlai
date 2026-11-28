@@ -22,6 +22,11 @@ clang++ -std=c++23 -DMERLAI_UI_TESTING -fobjc-arc -I"$sdk/include" \
   -framework CoreAudio -framework CoreFoundation -framework UniformTypeIdentifiers \
   -o target/merlai-ui-host-test
 target/merlai-ui-host-test
+clang++ -std=c++23 -DMERLAI_UI_TESTING -fobjc-arc -I"$sdk/include" \
+  tests/midi-fx/analyzer_ui_host.mm macos/MidiFX/AnalyzerEditor.mm macos/MidiFX/Link.mm \
+  -framework Cocoa -framework AudioUnit -framework AudioToolbox \
+  -o target/merlai-analyzer-ui-host-test
+target/merlai-analyzer-ui-host-test
 out=dist/MerlaiFX.component/Contents
 mkdir -p "$out/MacOS"
 cp macos/MidiFX/Info.plist "$out/"

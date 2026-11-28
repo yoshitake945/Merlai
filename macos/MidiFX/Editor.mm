@@ -88,30 +88,29 @@
 }
 @end
 
-@interface MerlaiPromptTextView : NSTextView {
-  NSTextField *_placeholderLabel;
-}
+@interface MerlaiPromptPlaceholder : NSTextField
+@property(nonatomic, weak) NSTextView *editor;
+@end
+@implementation MerlaiPromptPlaceholder
+- (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
+- (void)mouseDown:(NSEvent *)event { [self.window makeFirstResponder:self.editor]; }
+@end
+
+@interface MerlaiPromptTextView : NSTextView
 @property(nonatomic, copy) NSString *placeholderString;
+@property(nonatomic, weak) NSTextField *placeholderLabel;
 @end
 @implementation MerlaiPromptTextView
 - (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
 - (void)setPlaceholderString:(NSString *)placeholderString {
   _placeholderString = [placeholderString copy];
-  if (!_placeholderLabel) {
-    _placeholderLabel = [NSTextField labelWithString:@""];
-    _placeholderLabel.textColor = NSColor.placeholderTextColor;
-    _placeholderLabel.drawsBackground = NO;
-    _placeholderLabel.accessibilityElement = NO;
-    _placeholderLabel.accessibilityIdentifier = @"merlai.instruction-placeholder";
-    [self addSubview:_placeholderLabel];
-  }
-  _placeholderLabel.stringValue = _placeholderString ?: @"";
+  self.placeholderLabel.stringValue = _placeholderString ?: @"";
   [self updatePlaceholder];
 }
-- (void)setFont:(NSFont *)font {
-  [super setFont:font];
-  _placeholderLabel.font = font;
-  [self setNeedsLayout:YES];
+- (void)setPlaceholderLabel:(NSTextField *)placeholderLabel {
+  _placeholderLabel = placeholderLabel;
+  _placeholderLabel.stringValue = _placeholderString ?: @"";
+  [self updatePlaceholder];
 }
 - (void)setString:(NSString *)string {
   [super setString:string];
@@ -122,21 +121,7 @@
   [self updatePlaceholder];
 }
 - (void)updatePlaceholder {
-  _placeholderLabel.hidden = self.string.length > 0 || !_placeholderString.length;
-  [self setNeedsLayout:YES];
-}
-- (void)layout {
-  [super layout];
-  if (!_placeholderLabel) return;
-  NSPoint origin = self.textContainerOrigin;
-  CGFloat width = std::max<CGFloat>(0, NSWidth(self.bounds) - origin.x - 5);
-  NSFont *font = _placeholderLabel.font ?: [NSFont systemFontOfSize:13];
-  CGFloat height = ceil(font.ascender - font.descender + font.leading);
-  _placeholderLabel.frame = NSMakeRect(origin.x, origin.y, width, height);
-}
-- (NSView *)hitTest:(NSPoint)point {
-  NSView *hit = [super hitTest:point];
-  return hit == _placeholderLabel ? self : hit;
+  self.placeholderLabel.hidden = self.string.length > 0 || !_placeholderString.length;
 }
 @end
 
@@ -388,6 +373,12 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   bool _loaded, _hasDraft, _forceBuiltinOnce;
   NSURL *_lastMIDIURL;
   BOOL _auditioningRevised;
+#if defined(MERLAI_UI_TESTING)
+  BOOL _useTestCapture;
+  CaptureInfo _testCapture;
+  Phrase _testCapturedPhrase;
+  NSUInteger _testSourceRefreshes;
+#endif
 }
 - (instancetype)initWithUnit:(AudioUnit)unit;
 @end
@@ -434,7 +425,9 @@ static NSString *PhraseSummary(const Phrase &phrase) {
            frame:NSMakeRect(16, 543, 185, 32)];
     _captureSummary = [self label:@"未取り込み — Logicで先にサイクルを指定"
                             frame:NSMakeRect(216, 550, 480, 20) size:12 bold:NO];
+    _captureSummary.accessibilityIdentifier = @"merlai.capture-summary";
     _progress = [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(216, 539, 480, 8)];
+    _progress.accessibilityIdentifier = @"merlai.capture-progress";
     _progress.minValue = 0; _progress.maxValue = 1; _progress.indeterminate = NO;
     [_generationView addSubview:_progress];
     [self label:@"共有名" frame:NSMakeRect(16, 507, 48, 20) size:11 bold:YES];
@@ -499,6 +492,17 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _instruction.accessibilityIdentifier = @"merlai.instruction";
     promptScroll.documentView = _instruction;
     [_generationView addSubview:promptScroll];
+    MerlaiPromptPlaceholder *placeholder = [[MerlaiPromptPlaceholder alloc]
+      initWithFrame:NSMakeRect(22, 192, 340, 20)];
+    placeholder.stringValue = _instruction.placeholderString;
+    placeholder.font = _instruction.font;
+    placeholder.textColor = NSColor.placeholderTextColor;
+    placeholder.drawsBackground = NO;
+    placeholder.accessibilityElement = NO;
+    placeholder.accessibilityIdentifier = @"merlai.instruction-placeholder";
+    placeholder.editor = _instruction;
+    _instruction.placeholderLabel = placeholder;
+    [_generationView addSubview:placeholder];
     _plan = [self button:@"変更内容を確認" action:@selector(plan:)
                    frame:NSMakeRect(379, 208, 145, 30)];
     _plan.accessibilityIdentifier = @"merlai.plan";
@@ -718,6 +722,9 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   _sourcesSignature = 0;
 }
 - (void)refreshSources {
+#if defined(MERLAI_UI_TESTING)
+  ++_testSourceRefreshes;
+#endif
   LinkSourceInfo entries[64]{};
   size_t count = std::min<size_t>(merlai_link_list(_instanceId, entries, 64), 64);
   uint64_t signature = count;
@@ -739,16 +746,27 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   }
   _sourcesSignature = signature;
 }
+- (OSStatus)readCaptureInfo:(CaptureInfo *)info {
+#if defined(MERLAI_UI_TESTING)
+  if (_useTestCapture) { *info = _testCapture; return noErr; }
+#endif
+  UInt32 size = sizeof(*info);
+  return AudioUnitGetProperty(_unit, CaptureProgress, 0, 0, info, &size);
+}
+- (OSStatus)readCapturedPhrase:(Phrase *)phrase {
+#if defined(MERLAI_UI_TESTING)
+  if (_useTestCapture) { *phrase = _testCapturedPhrase; return noErr; }
+#endif
+  UInt32 size = sizeof(*phrase);
+  return AudioUnitGetProperty(_unit, ReadPhrase, 0, 0, phrase, &size);
+}
 - (void)poll {
-  // AppKit's input method runs on this same thread. Avoid remote Audio Unit
-  // property calls while the user is editing text, especially with an IME.
-  // NSTextField uses a shared field editor, so comparing the first responder
-  // with an individual control does not cover all text boxes in this view.
-  if (MerlaiIsEditingTextInView(self)) return;
-  [self refreshSources];
-  CaptureInfo info{}; UInt32 size = sizeof(info);
-  if (AudioUnitGetProperty(_unit, CaptureProgress, 0, 0, &info, &size) != noErr)
-    return;
+  // Capture is independent from text entry. Keep progress and completion
+  // flowing while an IME owns the first responder, but defer rebuilding the
+  // source menu until editing ends.
+  if (!MerlaiIsEditingTextInView(self)) [self refreshSources];
+  CaptureInfo info{};
+  if ([self readCaptureInfo:&info] != noErr) return;
   if (info.state == Capturing && info.end > info.start) {
     _progress.doubleValue = std::clamp(
       (info.position - info.start) / (info.end - info.start), 0., 1.);
@@ -760,8 +778,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _progress.doubleValue = 0;
     _captureSummary.stringValue = @"待機中 — 再生位置をサイクル先頭へ移動して再生";
   } else if (info.state == Ready && !_loaded) {
-    size = sizeof(Phrase);
-    if (AudioUnitGetProperty(_unit, ReadPhrase, 0, 0, &_original, &size) == noErr) {
+    if ([self readCapturedPhrase:&_original] == noErr) {
       UInt32 originalMode = 0;
       AudioUnitSetProperty(_unit, PlaybackMode, 0, 0, &originalMode, sizeof(originalMode));
       ++_generationRevision; _generateButton.enabled = YES; _hasDraft = false;
@@ -1234,6 +1251,12 @@ static NSString *PhraseSummary(const Phrase &phrase) {
 }
 - (uint32_t)draftCountForTesting { return _hasDraft ? _draft.count : 0; }
 - (BOOL)isEditingTextForTesting { return MerlaiIsEditingTextInView(self); }
+- (void)setCaptureInfoForTesting:(const CaptureInfo &)info phrase:(const Phrase &)phrase {
+  _useTestCapture = YES; _testCapture = info; _testCapturedPhrase = phrase;
+}
+- (void)pollForTesting { [self poll]; }
+- (BOOL)isLoadedForTesting { return _loaded; }
+- (NSUInteger)sourceRefreshesForTesting { return _testSourceRefreshes; }
 - (void)setCandidateForTesting:(const Phrase &)phrase {
   _draft = phrase; _hasDraft = true;
   [self setExportEnabled:YES confirmed:NO];
@@ -1261,6 +1284,19 @@ extern "C" uint32_t merlai_ui_test_draft_count(NSView *view) {
 }
 extern "C" BOOL merlai_ui_test_is_editing_text(NSView *view) {
   return [(MerlaiPhrasePanel *)view isEditingTextForTesting];
+}
+extern "C" void merlai_ui_test_set_capture(NSView *view, const CaptureInfo *info,
+                                             const Phrase *phrase) {
+  [(MerlaiPhrasePanel *)view setCaptureInfoForTesting:*info phrase:*phrase];
+}
+extern "C" void merlai_ui_test_poll(NSView *view) {
+  [(MerlaiPhrasePanel *)view pollForTesting];
+}
+extern "C" BOOL merlai_ui_test_is_loaded(NSView *view) {
+  return [(MerlaiPhrasePanel *)view isLoadedForTesting];
+}
+extern "C" NSUInteger merlai_ui_test_source_refreshes(NSView *view) {
+  return [(MerlaiPhrasePanel *)view sourceRefreshesForTesting];
 }
 extern "C" void merlai_ui_test_set_candidate(NSView *view, const Phrase *phrase) {
   [(MerlaiPhrasePanel *)view setCandidateForTesting:*phrase];

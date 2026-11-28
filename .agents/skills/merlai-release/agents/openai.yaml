@@ -1,0 +1,6 @@
+interface:
+  display_name: "Merlai Release"
+  short_description: "Verify CI artifacts and prepare macOS releases"
+  default_prompt: "Use $merlai-release to assess this commit for a Merlai macOS release."
+policy:
+  allow_implicit_invocation: true

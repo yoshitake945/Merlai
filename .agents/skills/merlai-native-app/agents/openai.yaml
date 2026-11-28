@@ -1,0 +1,6 @@
+interface:
+  display_name: "Merlai Native App Development"
+  short_description: "Develop the Rust engine and macOS app"
+  default_prompt: "Use $merlai-native-app to implement and verify this Merlai app change."
+policy:
+  allow_implicit_invocation: true
