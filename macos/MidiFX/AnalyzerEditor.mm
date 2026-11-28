@@ -3,6 +3,16 @@
 #import <AudioUnit/AUCocoaUIView.h>
 #import <Cocoa/Cocoa.h>
 
+static BOOL MerlaiAnalyzerIsEditingTextInView(NSView *root) {
+  NSResponder *responder = root.window.firstResponder;
+  if (![responder isKindOfClass:NSTextView.class]) return NO;
+  NSTextView *textView = (NSTextView *)responder;
+  if (textView == root || [textView isDescendantOf:root]) return YES;
+  id delegate = textView.delegate;
+  return [delegate isKindOfClass:NSView.class] &&
+    (delegate == root || [(NSView *)delegate isDescendantOf:root]);
+}
+
 @interface MerlaiAnalyzerPanel : NSView {
   AudioUnit _unit;
   uint64_t _instanceId;
@@ -10,6 +20,11 @@
   NSProgressIndicator *_progress;
   NSTimer *_timer;
   BOOL _published;
+#if defined(MERLAI_UI_TESTING)
+  BOOL _useTestCapture;
+  CaptureInfo _testCapture;
+  Phrase _testPhrase;
+#endif
 }
 - (instancetype)initWithUnit:(AudioUnit)unit;
 @end
@@ -32,6 +47,7 @@
     nameLabel.textColor = [NSColor colorWithWhite:.8 alpha:1];
     [self addSubview:nameLabel];
     _name = [[NSTextField alloc] initWithFrame:NSMakeRect(68, 145, 180, 27)];
+    _name.accessibilityIdentifier = @"merlai.analyzer-name";
     _name.stringValue = [NSString stringWithFormat:@"Drums %llu",
       (unsigned long long)_instanceId];
     _name.target = self; _name.action = @selector(rename:);
@@ -41,10 +57,12 @@
     arm.frame = NSMakeRect(270, 145, 130, 28);
     [self addSubview:arm];
     _summary = [NSTextField labelWithString:@"未解析 — Logicでサイクルを指定"];
+    _summary.accessibilityIdentifier = @"merlai.analyzer-summary";
     _summary.frame = NSMakeRect(16, 112, 480, 22);
     _summary.textColor = [NSColor colorWithWhite:.82 alpha:1];
     [self addSubview:_summary];
     _progress = [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(16, 96, 480, 8)];
+    _progress.accessibilityIdentifier = @"merlai.analyzer-progress";
     _progress.minValue = 0; _progress.maxValue = 1; _progress.indeterminate = NO;
     [self addSubview:_progress];
     _status = [NSTextField wrappingLabelWithString:
@@ -72,17 +90,31 @@
     _summary.stringValue = @"待機中 — サイクル先頭から再生";
   }
 }
+- (OSStatus)readCaptureInfo:(CaptureInfo *)info {
+#if defined(MERLAI_UI_TESTING)
+  if (_useTestCapture) { *info = _testCapture; return noErr; }
+#endif
+  UInt32 size = sizeof(*info);
+  return AudioUnitGetProperty(_unit, CaptureProgress, 0, 0, info, &size);
+}
+- (OSStatus)readCapturedPhrase:(Phrase *)phrase {
+#if defined(MERLAI_UI_TESTING)
+  if (_useTestCapture) { *phrase = _testPhrase; return noErr; }
+#endif
+  UInt32 size = sizeof(*phrase);
+  return AudioUnitGetProperty(_unit, ReadPhrase, 0, 0, phrase, &size);
+}
 - (void)poll {
-  CaptureInfo info{}; UInt32 size = sizeof(info);
-  if (AudioUnitGetProperty(_unit, CaptureProgress, 0, 0, &info, &size) != noErr)
-    return;
+  // Analysis capture is independent from the shared-name field editor.
+  CaptureInfo info{};
+  if ([self readCaptureInfo:&info] != noErr) return;
   if (info.state == Capturing && info.end > info.start) {
     _progress.doubleValue = (info.position - info.start) / (info.end - info.start);
     _summary.stringValue = [NSString stringWithFormat:@"解析中 • %uオンセット", info.count];
     _status.stringValue = @"原音を通過させながら解析中です。サイクル右端まで再生してください。";
   } else if (info.state == Ready && !_published) {
-    Phrase phrase{}; size = sizeof(phrase);
-    if (AudioUnitGetProperty(_unit, ReadPhrase, 0, 0, &phrase, &size) == noErr) {
+    Phrase phrase{};
+    if ([self readCapturedPhrase:&phrase] == noErr) {
       merlai_link_set_kind(_instanceId, 1);
       merlai_link_rename(_instanceId, _name.stringValue.UTF8String);
       merlai_link_publish(_instanceId, phrase);
@@ -95,7 +127,34 @@
     _summary.stringValue = @"解析失敗 — 音のあるサイクルを確認";
   }
 }
+#if defined(MERLAI_UI_TESTING)
+- (void)setCaptureInfoForTesting:(const CaptureInfo &)info phrase:(const Phrase &)phrase {
+  _useTestCapture = YES; _testCapture = info; _testPhrase = phrase;
+}
+- (void)pollForTesting { [self poll]; }
+- (BOOL)isEditingTextForTesting { return MerlaiAnalyzerIsEditingTextInView(self); }
+- (BOOL)isPublishedForTesting { return _published; }
+#endif
 @end
+
+#if defined(MERLAI_UI_TESTING)
+extern "C" NSView *merlai_analyzer_ui_test_create(void) {
+  return [[MerlaiAnalyzerPanel alloc] initWithUnit:nullptr];
+}
+extern "C" void merlai_analyzer_ui_test_set_capture(NSView *view,
+    const CaptureInfo *info, const Phrase *phrase) {
+  [(MerlaiAnalyzerPanel *)view setCaptureInfoForTesting:*info phrase:*phrase];
+}
+extern "C" void merlai_analyzer_ui_test_poll(NSView *view) {
+  [(MerlaiAnalyzerPanel *)view pollForTesting];
+}
+extern "C" BOOL merlai_analyzer_ui_test_is_editing_text(NSView *view) {
+  return [(MerlaiAnalyzerPanel *)view isEditingTextForTesting];
+}
+extern "C" BOOL merlai_analyzer_ui_test_is_published(NSView *view) {
+  return [(MerlaiAnalyzerPanel *)view isPublishedForTesting];
+}
+#endif
 
 @interface MerlaiAnalyzerViewFactory : NSObject <AUCocoaUIBase>
 @end

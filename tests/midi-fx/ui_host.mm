@@ -7,6 +7,11 @@
 extern "C" NSView *merlai_ui_test_create(void);
 extern "C" void merlai_ui_test_load_phrase(NSView *, const Phrase *);
 extern "C" uint32_t merlai_ui_test_draft_count(NSView *);
+extern "C" BOOL merlai_ui_test_is_editing_text(NSView *);
+extern "C" void merlai_ui_test_set_capture(NSView *, const CaptureInfo *, const Phrase *);
+extern "C" void merlai_ui_test_poll(NSView *);
+extern "C" BOOL merlai_ui_test_is_loaded(NSView *);
+extern "C" NSUInteger merlai_ui_test_source_refreshes(NSView *);
 extern "C" void merlai_ui_test_set_candidate(NSView *, const Phrase *);
 extern "C" void merlai_ui_test_export_phrase(NSView *, Phrase *);
 extern "C" NSURL *merlai_ui_test_drag_url(NSView *);
@@ -31,14 +36,22 @@ int main() {
     window.contentView = panel;
 
     auto *prompt = (NSTextView *)find(panel, @"merlai.instruction");
+    auto *placeholder = (NSTextField *)find(panel, @"merlai.instruction-placeholder");
+    auto *sourceName = (NSTextField *)find(panel, @"merlai.source-name");
+    auto *endpoint = (NSTextField *)find(panel, @"merlai.endpoint");
+    auto *captureSummary = (NSTextField *)find(panel, @"merlai.capture-summary");
+    auto *captureProgress = (NSProgressIndicator *)find(panel, @"merlai.capture-progress");
     auto *tabs = (NSSegmentedControl *)find(panel, @"merlai.tabs");
     NSView *generation = find(panel, @"merlai.generation");
     NSView *editor = find(panel, @"merlai.editor");
     NSView *roll = find(panel, @"merlai.editor-roll");
     auto *assistant = (NSTextView *)find(panel, @"merlai.assistant-message");
     NSView *drag = find(panel, @"merlai.midi-drag");
-    assert(prompt && tabs && generation && editor && roll && assistant && drag);
+    assert(prompt && placeholder && sourceName && endpoint && captureSummary && captureProgress &&
+           tabs && generation && editor && roll && assistant && drag);
     assert([prompt.accessibilityLabel isEqualToString:@"生成指示"]);
+    assert(placeholder.accessibilityElement == NO);
+    assert(placeholder.hidden);
     assert([roll.accessibilityLabel isEqualToString:@"MIDIノート編集領域"]);
     NSArray<NSString *> *firstMouseIDs = @[@"merlai.instruction", @"merlai.source",
       @"merlai.purpose", @"merlai.provider", @"merlai.model", @"merlai.endpoint",
@@ -53,6 +66,7 @@ int main() {
       assert(control && [control acceptsFirstMouse:probe]);
     }
     assert([window makeFirstResponder:prompt]);
+    assert(merlai_ui_test_is_editing_text(panel));
     id responder = window.firstResponder;
     assert([responder conformsToProtocol:@protocol(NSTextInputClient)]);
     [prompt selectAll:nil];
@@ -62,10 +76,71 @@ int main() {
     [responder insertText:@"ストリングスを追加" replacementRange:NSMakeRange(NSNotFound, 0)];
     assert(![responder hasMarkedText]);
     assert([prompt.string isEqualToString:@"ストリングスを追加"]);
+    assert(placeholder.hidden);
+
+    prompt.string = @"";
+    [prompt layoutSubtreeIfNeeded];
+    assert(!placeholder.hidden);
+    assert([placeholder.stringValue isEqualToString:@"作曲・編集の指示を入力"]);
+    NSRect placeholderFrame = placeholder.frame;
+    for (int redraw = 0; redraw < 16; ++redraw) {
+      // Caret blinking and host refreshes invalidate only part of NSTextView.
+      // A stable placeholder remains a separate subview with a fixed frame.
+      [prompt setNeedsDisplayInRect:NSMakeRect(placeholderFrame.origin.x, 0, 2,
+                                               NSHeight(prompt.bounds))];
+      [prompt displayIfNeeded];
+      assert(NSEqualRects(placeholder.frame, placeholderFrame));
+      assert(!placeholder.hidden);
+    }
+    [window makeFirstResponder:endpoint];
+    [placeholder mouseDown:probe];
+    assert(window.firstResponder == prompt);
+    [responder setMarkedText:@"へんかん" selectedRange:NSMakeRange(4, 0)
+            replacementRange:NSMakeRange(NSNotFound, 0)];
+    assert(placeholder.hidden);
+    [responder unmarkText];
+    prompt.string = @"";
+    assert(!placeholder.hidden);
+
+    // NSTextField uses a window-owned field editor rather than becoming the
+    // first responder itself. Editing it is still detected without disturbing
+    // the prompt placeholder.
+    for (NSTextField *field in @[sourceName, endpoint]) {
+      assert([window makeFirstResponder:field]);
+      assert([window.firstResponder isKindOfClass:NSTextView.class]);
+      assert(window.firstResponder != field);
+      assert(merlai_ui_test_is_editing_text(panel));
+      assert(!placeholder.hidden);
+      assert(NSEqualRects(placeholder.frame, placeholderFrame));
+    }
 
     Phrase phrase{}; phrase.start = 12; phrase.end = 16; phrase.count = 2;
     phrase.notes[0] = {0, 1, 60, 90, 0};
     phrase.notes[1] = {2, 3, 64, 90, 0};
+    assert([window makeFirstResponder:prompt]);
+    responder = window.firstResponder;
+    [responder setMarkedText:@"後半をへんしゅう" selectedRange:NSMakeRange(8, 0)
+            replacementRange:NSMakeRange(NSNotFound, 0)];
+    NSUInteger refreshes = merlai_ui_test_source_refreshes(panel);
+    CaptureInfo capture{Capturing, 7, 12, 16, 14};
+    merlai_ui_test_set_capture(panel, &capture, &phrase);
+    merlai_ui_test_poll(panel);
+    assert([responder hasMarkedText]);
+    assert(captureProgress.doubleValue == .5);
+    assert([captureSummary.stringValue containsString:@"取り込み中 7音"]);
+    assert(merlai_ui_test_source_refreshes(panel) == refreshes);
+    capture.state = Ready; capture.position = 16;
+    merlai_ui_test_set_capture(panel, &capture, &phrase);
+    merlai_ui_test_poll(panel);
+    assert([responder hasMarkedText]);
+    assert(merlai_ui_test_is_loaded(panel));
+    assert(captureProgress.doubleValue == 1);
+    assert([captureSummary.stringValue containsString:@"2音を取り込み済み"]);
+    [responder unmarkText];
+    [window makeFirstResponder:nil];
+    merlai_ui_test_poll(panel);
+    assert(merlai_ui_test_source_refreshes(panel) == refreshes + 1);
+
     merlai_ui_test_load_phrase(panel, &phrase);
     Phrase candidate = phrase; candidate.count = 1; candidate.notes[0].pitch = 72;
     merlai_ui_test_set_candidate(panel, &candidate);
