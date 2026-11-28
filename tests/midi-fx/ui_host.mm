@@ -66,6 +66,7 @@ int main() {
     NSArray<NSString *> *firstMouseIDs = @[@"merlai.instruction", @"merlai.source",
       @"merlai.purpose", @"merlai.provider", @"merlai.model", @"merlai.endpoint",
       @"merlai.plan", @"merlai.generate", @"merlai.tabs", @"merlai.editor-roll",
+      @"merlai.tool.inspect-context", @"merlai.tool.explain-harmony",
       @"merlai.editor-copy", @"merlai.editor-undo", @"merlai.editor-audition",
       @"merlai.editor-confirm"];
     NSEvent *probe = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDown location:NSZeroPoint
@@ -190,6 +191,17 @@ int main() {
     assert(((NSButton *)find(panel, @"merlai.suggestion.2")).hidden);
     assert([firstSuggestion acceptsFirstMouse:probe]);
     assert([drag acceptsFirstMouse:probe]);
+
+    auto *inspectContext = (NSButton *)find(panel, @"merlai.tool.inspect-context");
+    auto *explainHarmony = (NSButton *)find(panel, @"merlai.tool.explain-harmony");
+    [keyScale selectItemWithTitle:@"C Major"];
+    [inspectContext sendAction:inspectContext.action to:inspectContext.target];
+    [explainHarmony sendAction:explainHarmony.action to:explainHarmony.target];
+    assert(merlai_ui_test_conversation_count(panel) == 6);
+    assert([assistant.string containsString:@"文脈分析"]);
+    assert([assistant.string containsString:@"2音・C4〜E4"]);
+    assert([assistant.string containsString:@"和声の手がかり"]);
+    assert([assistant.string containsString:@"C Majorへの適合 2/2音"]);
 
     tabs.selectedSegment = 1;
     [tabs sendAction:tabs.action to:tabs.target];
