@@ -19,6 +19,7 @@ extern "C" id<NSPasteboardWriting> merlai_ui_test_drag_writer(NSView *);
 extern "C" void merlai_ui_test_show_response(NSView *, NSDictionary *);
 extern "C" void merlai_ui_test_append_conversation(NSView *, NSString *, NSString *);
 extern "C" NSUInteger merlai_ui_test_conversation_count(NSView *);
+extern "C" NSUInteger merlai_ui_test_candidate_count(NSView *);
 
 static NSView *find(NSView *root, NSString *identifier) {
   if ([root.accessibilityIdentifier isEqualToString:identifier]) return root;
@@ -153,6 +154,7 @@ int main() {
     merlai_ui_test_load_phrase(panel, &phrase);
     Phrase candidate = phrase; candidate.count = 1; candidate.notes[0].pitch = 72;
     merlai_ui_test_set_candidate(panel, &candidate);
+    assert(merlai_ui_test_candidate_count(panel) == 1);
     assert([[drag valueForKey:@"enabled"] boolValue]);
     assert(![[drag valueForKey:@"confirmed"] boolValue]);
     Phrase exported{}; merlai_ui_test_export_phrase(panel, &exported);
@@ -220,6 +222,26 @@ int main() {
       [tabs sendAction:tabs.action to:tabs.target];
       assert(generation.hidden && !editor.hidden && window.firstResponder != prompt);
     }
+
+    // Candidate cards retain the latest five successful generations and
+    // selecting a card changes only the preview/export target.
+    for (uint8_t pitch = 73; pitch <= 78; ++pitch) {
+      Phrase next = phrase; next.count = 1; next.notes[0].pitch = pitch;
+      merlai_ui_test_set_candidate(panel, &next);
+    }
+    assert(merlai_ui_test_candidate_count(panel) == 5);
+    auto *newestCandidate = (NSButton *)find(panel, @"merlai.candidate.0");
+    auto *oldestCandidate = (NSButton *)find(panel, @"merlai.candidate.4");
+    assert(newestCandidate && oldestCandidate && !newestCandidate.hidden && !oldestCandidate.hidden);
+    [oldestCandidate sendAction:oldestCandidate.action to:oldestCandidate.target];
+    merlai_ui_test_export_phrase(panel, &exported);
+    assert(exported.count == 1 && exported.notes[0].pitch == 74);
+    assert([[drag valueForKey:@"enabled"] boolValue]);
+    assert(![[drag valueForKey:@"confirmed"] boolValue]);
+
+    merlai_ui_test_load_phrase(panel, &phrase);
+    assert(merlai_ui_test_candidate_count(panel) == 0);
+    assert(newestCandidate.hidden && oldestCandidate.hidden);
     puts("AU Cocoa UI focus, tab visibility, accessibility, and hit testing passed.");
   }
 }
