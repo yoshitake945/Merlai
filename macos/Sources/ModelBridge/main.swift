@@ -37,11 +37,20 @@ struct MusicalContext: Codable {
   let sourceRevision: UInt64?
   let sourceKind: String?
 }
+struct ContextSource: Codable {
+  let role: String
+  let notes: [Note]
+  let sourceId, sourceRevision: UInt64?
+}
 struct GenerationPayload: Codable {
   let version: Int
   let instruction, purpose: String
   let musicalContext: MusicalContext
   let notes: [Note]
+  let contexts: [ContextSource]?
+  let keyRoot, scale: Int?
+  let targetSpan: Double?
+  let variation: Int?
 }
 struct GenerateRequest: Codable {
   let providerId, model: String
@@ -224,6 +233,8 @@ func prompt(_ payload: GenerationPayload) throws -> Data {
   let json = String(decoding: data, as: UTF8.self)
   return Data(("You are a MIDI phrase editor. Return only JSON matching the supplied schema. " +
     "Keep every note inside musicalContext.span and MIDI ranges. " +
+    "Use contexts as role-labeled musical evidence. Respect keyRoot and scale when supplied. " +
+    "For continue, extend the motif through targetSpan rather than replacing its identity. " +
     "For edit, preserve the source unless the instruction requests a change. " +
     "For bass, chords, or counter_melody, create that role using the source as musical context. Request:\n" + json).utf8)
 }

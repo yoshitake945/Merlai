@@ -27,6 +27,9 @@ extern "C" int32_t merlai_edit(const Note *, size_t, double, const char *,
                                Note *);
 extern "C" int32_t merlai_generate(const Note *, size_t, double, uint32_t,
                                    Note *);
+extern "C" int32_t merlai_generate_context(const Note *, size_t, const Note *,
+                                              size_t, double, uint32_t, double,
+                                              uint32_t, uint32_t, uint32_t, Note *);
 struct Onset {
   uint32_t frame;
   float strength;

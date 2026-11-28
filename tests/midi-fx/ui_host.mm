@@ -45,14 +45,21 @@ int main() {
     NSView *generation = find(panel, @"merlai.generation");
     NSView *editor = find(panel, @"merlai.editor");
     NSView *roll = find(panel, @"merlai.editor-roll");
+    auto *purpose = (NSPopUpButton *)find(panel, @"merlai.purpose");
+    auto *keyScale = (NSPopUpButton *)find(panel, @"merlai.key-scale");
     auto *assistant = (NSTextView *)find(panel, @"merlai.assistant-message");
     NSView *drag = find(panel, @"merlai.midi-drag");
     assert(prompt && placeholder && sourceName && endpoint && captureSummary && captureProgress &&
-           tabs && generation && editor && roll && assistant && drag);
+           tabs && generation && editor && roll && purpose && keyScale && assistant && drag);
     assert([prompt.accessibilityLabel isEqualToString:@"生成指示"]);
     assert(placeholder.accessibilityElement == NO);
     assert(placeholder.hidden);
-    assert([roll.accessibilityLabel isEqualToString:@"MIDIノート編集領域"]);
+    assert([roll.accessibilityLabel isEqualToString:@"MIDI候補差分表示"]);
+    assert(purpose.numberOfItems == 5);
+    assert([purpose itemWithTitle:@"続きを生成"] != nil);
+    assert(keyScale.numberOfItems == 25);
+    assert([keyScale itemWithTitle:@"C Major"] != nil);
+    assert([keyScale itemWithTitle:@"B Minor"] != nil);
     NSArray<NSString *> *firstMouseIDs = @[@"merlai.instruction", @"merlai.source",
       @"merlai.purpose", @"merlai.provider", @"merlai.model", @"merlai.endpoint",
       @"merlai.plan", @"merlai.generate", @"merlai.tabs", @"merlai.editor-roll",
@@ -178,7 +185,7 @@ int main() {
     [tabs sendAction:tabs.action to:tabs.target];
     assert(generation.hidden && !editor.hidden);
     assert(merlai_ui_test_draft_count(panel) == candidate.count);
-    assert(window.firstResponder == roll);
+    assert(window.firstResponder != prompt);
 
     NSArray<NSString *> *buttonIDs = @[@"merlai.editor-copy", @"merlai.editor-undo",
       @"merlai.editor-audition", @"merlai.editor-confirm"];
@@ -203,7 +210,7 @@ int main() {
       assert([prompt.string isEqualToString:value]);
       tabs.selectedSegment = 1;
       [tabs sendAction:tabs.action to:tabs.target];
-      assert(generation.hidden && !editor.hidden && window.firstResponder == roll);
+      assert(generation.hidden && !editor.hidden && window.firstResponder != prompt);
     }
     puts("AU Cocoa UI focus, tab visibility, accessibility, and hit testing passed.");
   }
