@@ -17,6 +17,8 @@ extern "C" void merlai_ui_test_export_phrase(NSView *, Phrase *);
 extern "C" NSURL *merlai_ui_test_drag_url(NSView *);
 extern "C" id<NSPasteboardWriting> merlai_ui_test_drag_writer(NSView *);
 extern "C" void merlai_ui_test_show_response(NSView *, NSDictionary *);
+extern "C" void merlai_ui_test_append_conversation(NSView *, NSString *, NSString *);
+extern "C" NSUInteger merlai_ui_test_conversation_count(NSView *);
 
 static NSView *find(NSView *root, NSString *identifier) {
   if ([root.accessibilityIdentifier isEqualToString:identifier]) return root;
@@ -163,9 +165,11 @@ int main() {
     assert([dragItem.types containsObject:NSPasteboardTypeFileURL]);
 
     NSString *longMessage = @"主旋律を避けるため音域を上げ、長い音価のストリングスにしました。次の候補も選べます。";
+    merlai_ui_test_append_conversation(panel, @"user", @"ストリングスを追加");
     merlai_ui_test_show_response(panel, @{@"message": longMessage,
       @"suggestions": @[@"音数を減らす", @"一オクターブ下げる", @"終止だけ伸ばす"]});
-    assert([assistant.string isEqualToString:longMessage]);
+    assert([assistant.string containsString:@"あなた: ストリングスを追加"]);
+    assert([assistant.string containsString:[@"Merlai: " stringByAppendingString:longMessage]]);
     for (NSUInteger i = 0; i < 3; ++i) {
       auto *suggestion = (NSButton *)find(panel,
         [NSString stringWithFormat:@"merlai.suggestion.%lu", (unsigned long)i]);
@@ -174,7 +178,11 @@ int main() {
     auto *firstSuggestion = (NSButton *)find(panel, @"merlai.suggestion.0");
     [firstSuggestion sendAction:firstSuggestion.action to:firstSuggestion.target];
     assert([prompt.string isEqualToString:@"音数を減らす"]);
+    merlai_ui_test_append_conversation(panel, @"user", prompt.string);
     merlai_ui_test_show_response(panel, @{@"message": @"更新しました", @"suggestions": @[@"弱くする"]});
+    assert(merlai_ui_test_conversation_count(panel) == 4);
+    assert([assistant.string containsString:@"あなた: 音数を減らす"]);
+    assert([assistant.string containsString:@"Merlai: 更新しました"]);
     assert(!firstSuggestion.hidden);
     assert(((NSButton *)find(panel, @"merlai.suggestion.1")).hidden);
     assert(((NSButton *)find(panel, @"merlai.suggestion.2")).hidden);
