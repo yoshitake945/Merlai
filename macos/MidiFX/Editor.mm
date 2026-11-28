@@ -349,7 +349,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   Phrase _original, _current, _draft;
   std::vector<Phrase> _undo;
   MerlaiPromptTextView *_instruction;
-  NSTextField *_message, *_captureSummary, *_activeSource;
+  NSTextField *_message, *_captureSummary, *_activeSource, *_usageLabel;
   NSTextView *_assistantMessage;
   NSTextField *_sourceName;
   NSTextField *_endpointField;
@@ -374,6 +374,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   NSMutableArray<NSDictionary *> *_candidates;
   NSArray<MerlaiButton *> *_candidateButtons;
   uint64_t _nextCandidateId, _selectedCandidateId;
+  uint64_t _sessionInputTokens, _sessionOutputTokens;
   uint64_t _instanceId, _sourcesSignature;
   uint64_t _generationRevision;
   uint64_t _loadedSourceId, _loadedSourceRevision;
@@ -571,10 +572,17 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _assistantPanel.accessibilityIdentifier = @"merlai.assistant-panel";
     [_generationView addSubview:_assistantPanel];
     NSTextField *assistantTitle = [NSTextField labelWithString:@"制作チャット"];
-    assistantTitle.frame = NSMakeRect(12, 279, 208, 20);
+    assistantTitle.frame = NSMakeRect(12, 279, 80, 20);
     assistantTitle.font = [NSFont systemFontOfSize:12 weight:NSFontWeightSemibold];
     assistantTitle.textColor = NSColor.lightGrayColor;
     [_assistantPanel addSubview:assistantTitle];
+    _usageLabel = [NSTextField labelWithString:@"AI利用量: まだありません"];
+    _usageLabel.frame = NSMakeRect(92, 279, 128, 20);
+    _usageLabel.alignment = NSTextAlignmentRight;
+    _usageLabel.font = [NSFont systemFontOfSize:9];
+    _usageLabel.textColor = NSColor.secondaryLabelColor;
+    _usageLabel.accessibilityIdentifier = @"merlai.usage-summary";
+    [_assistantPanel addSubview:_usageLabel];
     NSScrollView *assistantScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(10, 134, 212, 141)];
     assistantScroll.borderType = NSNoBorder;
     assistantScroll.hasVerticalScroller = YES;
@@ -1155,7 +1163,11 @@ static NSString *PhraseSummary(const Phrase &phrase) {
         NSString *stage = event[@"stage"] ?: @"generating";
         NSString *message = event[@"message"] ?: @"生成中";
         dispatch_async(dispatch_get_main_queue(), ^{ [self setGenerationStage:stage message:message]; });
-      } else if ([event[@"type"] isEqual:@"result"]) result = event[@"result"];
+      } else if ([event[@"type"] isEqual:@"result"]) {
+        NSMutableDictionary *value = [event[@"result"] mutableCopy];
+        if (event[@"usage"]) value[@"usage"] = event[@"usage"];
+        result = value;
+      }
       else if ([event[@"type"] isEqual:@"error"] && error) *error = event[@"message"];
     }
   }
@@ -1353,6 +1365,21 @@ static NSString *PhraseSummary(const Phrase &phrase) {
   [self renderConversation];
 }
 - (void)showAssistantResponse:(NSDictionary *)response {
+  NSDictionary *usage = response[@"usage"];
+  if ([usage isKindOfClass:NSDictionary.class]) {
+    _sessionInputTokens += [usage[@"inputTokens"] unsignedLongLongValue];
+    _sessionOutputTokens += [usage[@"outputTokens"] unsignedLongLongValue];
+    NSString *estimate = [usage[@"estimated"] boolValue] ? @"推定" : @"実測";
+    _usageLabel.stringValue = [NSString stringWithFormat:@"%@ in %llu / out %llu",
+      estimate, (unsigned long long)_sessionInputTokens, (unsigned long long)_sessionOutputTokens];
+    _usageLabel.toolTip = [NSString stringWithFormat:@"%@ / %@ • %.1f秒 • セッション合計",
+      usage[@"provider"] ?: @"provider", usage[@"model"] ?: @"model",
+      [usage[@"durationMs"] doubleValue] / 1000.0];
+    _usageLabel.accessibilityLabel = [NSString stringWithFormat:
+      @"AI利用量、%@、入力%lluトークン、出力%lluトークン、%@",
+      estimate, (unsigned long long)_sessionInputTokens,
+      (unsigned long long)_sessionOutputTokens, _usageLabel.toolTip];
+  }
   [self appendConversationRole:@"assistant"
                        content:response[@"message"] ?: @"モデルから説明はありませんでした。"];
   _suggestions = [response[@"suggestions"] isKindOfClass:NSArray.class] ? response[@"suggestions"] : @[];
