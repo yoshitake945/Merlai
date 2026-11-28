@@ -148,6 +148,11 @@ static NSString *NoteLabel(uint8_t pitch) {
     @"F♯", @"G", @"A♭", @"A", @"B♭", @"B"];
   return [NSString stringWithFormat:@"%@%d", names[pitch % 12], pitch / 12 - 1];
 }
+static NSString *PitchClassLabel(uint8_t pitch) {
+  static NSArray<NSString *> *names = @[@"C", @"C♯", @"D", @"E♭", @"E", @"F",
+    @"F♯", @"G", @"A♭", @"A", @"B♭", @"B"];
+  return names[pitch % 12];
+}
 static NSString *PhraseSummary(const Phrase &phrase) {
   if (!phrase.count) return @"0音";
   uint8_t low = 127, high = 0;
@@ -570,7 +575,7 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     assistantTitle.font = [NSFont systemFontOfSize:12 weight:NSFontWeightSemibold];
     assistantTitle.textColor = NSColor.lightGrayColor;
     [_assistantPanel addSubview:assistantTitle];
-    NSScrollView *assistantScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(10, 102, 212, 173)];
+    NSScrollView *assistantScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(10, 134, 212, 141)];
     assistantScroll.borderType = NSNoBorder;
     assistantScroll.hasVerticalScroller = YES;
     assistantScroll.drawsBackground = NO;
@@ -587,6 +592,16 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     _assistantMessage.textContainer.widthTracksTextView = YES;
     assistantScroll.documentView = _assistantMessage;
     [_assistantPanel addSubview:assistantScroll];
+    MerlaiButton *inspectButton = [[MerlaiButton alloc] initWithFrame:NSMakeRect(10, 104, 102, 26)];
+    inspectButton.title = @"文脈を分析"; inspectButton.target = self;
+    inspectButton.action = @selector(inspectContext:);
+    inspectButton.accessibilityIdentifier = @"merlai.tool.inspect-context";
+    [_assistantPanel addSubview:inspectButton];
+    MerlaiButton *harmonyButton = [[MerlaiButton alloc] initWithFrame:NSMakeRect(120, 104, 102, 26)];
+    harmonyButton.title = @"和声を説明"; harmonyButton.target = self;
+    harmonyButton.action = @selector(explainHarmony:);
+    harmonyButton.accessibilityIdentifier = @"merlai.tool.explain-harmony";
+    [_assistantPanel addSubview:harmonyButton];
     NSMutableArray *suggestionButtons = [NSMutableArray arrayWithCapacity:3];
     for (NSUInteger i = 0; i < 3; ++i) {
       MerlaiButton *button = [[MerlaiButton alloc] initWithFrame:NSMakeRect(10, 70 - i * 32, 212, 26)];
@@ -1216,6 +1231,63 @@ static NSString *PhraseSummary(const Phrase &phrase) {
     output.notes[i] = note;
   }
   return (int)notes.count;
+}
+- (void)inspectContext:(id)sender {
+  if (!_loaded || !_original.count) {
+    _message.stringValue = @"先に分析するフレーズを取り込んでください。"; return;
+  }
+  double span = std::max(.001, _original.end - _original.start);
+  double velocity = 0;
+  for (uint32_t i = 0; i < _original.count; ++i) velocity += _original.notes[i].velocity;
+  velocity /= _original.count;
+  NSString *source = _loadedSourceName ?: @"このトラック";
+  NSString *analysis = [NSString stringWithFormat:
+    @"文脈分析 — %@ [%@]、%@、範囲 %.1f拍、密度 %.2f音/拍、平均ベロシティ %.0f。",
+    source, _loadedSourceKind ?: @"MIDI", PhraseSummary(_original), span,
+    _original.count / span, velocity];
+  [self appendConversationRole:@"assistant" content:analysis];
+  _message.stringValue = @"ローカルで文脈を分析しました。MIDIや会話は送信していません。";
+}
+- (void)explainHarmony:(id)sender {
+  if (!_loaded || !_original.count) {
+    _message.stringValue = @"先に説明するフレーズを取り込んでください。"; return;
+  }
+  bool present[12]{}; uint32_t counts[12]{};
+  for (uint32_t i = 0; i < _original.count; ++i) {
+    uint8_t pitchClass = _original.notes[i].pitch % 12;
+    present[pitchClass] = true; ++counts[pitchClass];
+  }
+  NSMutableArray<NSString *> *used = [NSMutableArray array];
+  for (uint8_t pitchClass = 0; pitchClass < 12; ++pitchClass)
+    if (present[pitchClass]) [used addObject:PitchClassLabel(pitchClass)];
+  NSMutableArray<NSString *> *triads = [NSMutableArray array];
+  for (uint8_t root = 0; root < 12 && triads.count < 3; ++root) {
+    if (present[root] && present[(root + 4) % 12] && present[(root + 7) % 12])
+      [triads addObject:[PitchClassLabel(root) stringByAppendingString:@" major"]];
+    if (triads.count < 3 && present[root] && present[(root + 3) % 12] && present[(root + 7) % 12])
+      [triads addObject:[PitchClassLabel(root) stringByAppendingString:@" minor"]];
+  }
+  NSDictionary *keyScale = _keyScalePopup.selectedItem.representedObject;
+  NSString *keyText = @"Key未指定";
+  if (keyScale) {
+    uint8_t root = [keyScale[@"root"] unsignedIntValue] % 12;
+    BOOL minor = [keyScale[@"scale"] unsignedIntValue] == 2;
+    NSArray<NSNumber *> *intervals = minor
+      ? @[@0, @2, @3, @5, @7, @8, @10] : @[@0, @2, @4, @5, @7, @9, @11];
+    uint32_t inside = 0;
+    for (uint8_t pitchClass = 0; pitchClass < 12; ++pitchClass)
+      if (present[pitchClass] && [intervals containsObject:@((pitchClass + 12 - root) % 12)])
+        inside += counts[pitchClass];
+    keyText = [NSString stringWithFormat:@"%@ %@への適合 %u/%u音",
+      PitchClassLabel(root), minor ? @"Minor" : @"Major", inside, _original.count];
+  }
+  NSString *triadText = triads.count
+    ? [NSString stringWithFormat:@"含まれる三和音候補: %@", [triads componentsJoinedByString:@", "]]
+    : @"明確な三和音は見つかりません";
+  NSString *analysis = [NSString stringWithFormat:@"和声の手がかり — 使用音: %@。%@。%@。",
+    [used componentsJoinedByString:@", "], triadText, keyText];
+  [self appendConversationRole:@"assistant" content:analysis];
+  _message.stringValue = @"ローカルで使用音と三和音候補を説明しました。";
 }
 - (void)renderConversation {
   if (!_conversation.count) {
