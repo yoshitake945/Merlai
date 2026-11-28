@@ -67,7 +67,7 @@ int main() {
       @"merlai.purpose", @"merlai.provider", @"merlai.model", @"merlai.endpoint",
       @"merlai.plan", @"merlai.generate", @"merlai.tabs", @"merlai.editor-roll",
       @"merlai.tool.inspect-context", @"merlai.tool.explain-harmony",
-      @"merlai.editor-copy", @"merlai.editor-undo", @"merlai.editor-audition",
+      @"merlai.editor-copy", @"merlai.editor-undo", @"merlai.editor-compare", @"merlai.editor-audition",
       @"merlai.editor-confirm"];
     NSEvent *probe = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDown location:NSZeroPoint
       modifierFlags:0 timestamp:0 windowNumber:window.windowNumber context:nil eventNumber:0
@@ -210,7 +210,7 @@ int main() {
     assert(window.firstResponder != prompt);
 
     NSArray<NSString *> *buttonIDs = @[@"merlai.editor-copy", @"merlai.editor-undo",
-      @"merlai.editor-audition", @"merlai.editor-confirm"];
+      @"merlai.editor-compare", @"merlai.editor-audition", @"merlai.editor-confirm"];
     for (NSString *identifier in buttonIDs) {
       NSView *button = find(panel, identifier);
       assert(button && !button.hidden);
@@ -249,6 +249,14 @@ int main() {
     merlai_ui_test_export_phrase(panel, &exported);
     assert(exported.count == 1 && exported.notes[0].pitch == 74);
     assert([[drag valueForKey:@"enabled"] boolValue]);
+    assert(![[drag valueForKey:@"confirmed"] boolValue]);
+
+    [newestCandidate sendAction:newestCandidate.action to:newestCandidate.target];
+    auto *compareCandidate = (NSButton *)find(panel, @"merlai.editor-compare");
+    [compareCandidate sendAction:compareCandidate.action to:compareCandidate.target];
+    assert([assistant.string containsString:@"候補比較"]);
+    assert([assistant.string containsString:@"候補#6と候補#7"]);
+    assert([assistant.string containsString:@"追加 1音・削除 1音"]);
     assert(![[drag valueForKey:@"confirmed"] boolValue]);
 
     merlai_ui_test_load_phrase(panel, &phrase);
