@@ -51,9 +51,11 @@ int main() {
     auto *purpose = (NSPopUpButton *)find(panel, @"merlai.purpose");
     auto *keyScale = (NSPopUpButton *)find(panel, @"merlai.key-scale");
     auto *assistant = (NSTextView *)find(panel, @"merlai.assistant-message");
+    auto *usageSummary = (NSTextField *)find(panel, @"merlai.usage-summary");
     NSView *drag = find(panel, @"merlai.midi-drag");
     assert(prompt && placeholder && sourceName && endpoint && captureSummary && captureProgress &&
-           tabs && generation && editor && roll && purpose && keyScale && assistant && drag);
+           tabs && generation && editor && roll && purpose && keyScale && assistant && usageSummary && drag);
+    assert([usageSummary.stringValue isEqualToString:@"AI利用量: まだありません"]);
     assert([prompt.accessibilityLabel isEqualToString:@"生成指示"]);
     assert(placeholder.accessibilityElement == NO);
     assert(placeholder.hidden);
@@ -170,7 +172,11 @@ int main() {
     NSString *longMessage = @"主旋律を避けるため音域を上げ、長い音価のストリングスにしました。次の候補も選べます。";
     merlai_ui_test_append_conversation(panel, @"user", @"ストリングスを追加");
     merlai_ui_test_show_response(panel, @{@"message": longMessage,
-      @"suggestions": @[@"音数を減らす", @"一オクターブ下げる", @"終止だけ伸ばす"]});
+      @"suggestions": @[@"音数を減らす", @"一オクターブ下げる", @"終止だけ伸ばす"],
+      @"usage": @{@"provider": @"codex", @"model": @"test", @"inputTokens": @120,
+        @"outputTokens": @30, @"durationMs": @1500, @"estimated": @YES}});
+    assert([usageSummary.stringValue isEqualToString:@"推定 in 120 / out 30"]);
+    assert([usageSummary.toolTip containsString:@"codex / test • 1.5秒"]);
     assert([assistant.string containsString:@"あなた: ストリングスを追加"]);
     assert([assistant.string containsString:[@"Merlai: " stringByAppendingString:longMessage]]);
     for (NSUInteger i = 0; i < 3; ++i) {
@@ -182,7 +188,10 @@ int main() {
     [firstSuggestion sendAction:firstSuggestion.action to:firstSuggestion.target];
     assert([prompt.string isEqualToString:@"音数を減らす"]);
     merlai_ui_test_append_conversation(panel, @"user", prompt.string);
-    merlai_ui_test_show_response(panel, @{@"message": @"更新しました", @"suggestions": @[@"弱くする"]});
+    merlai_ui_test_show_response(panel, @{@"message": @"更新しました", @"suggestions": @[@"弱くする"],
+      @"usage": @{@"provider": @"codex", @"model": @"test", @"inputTokens": @40,
+        @"outputTokens": @10, @"durationMs": @500, @"estimated": @YES}});
+    assert([usageSummary.stringValue isEqualToString:@"推定 in 160 / out 40"]);
     assert(merlai_ui_test_conversation_count(panel) == 4);
     assert([assistant.string containsString:@"あなた: 音数を減らす"]);
     assert([assistant.string containsString:@"Merlai: 更新しました"]);

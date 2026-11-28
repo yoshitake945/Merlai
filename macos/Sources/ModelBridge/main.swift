@@ -66,11 +66,17 @@ struct GenerationResponse: Codable {
   let message: String
   let suggestions: [String]
 }
+struct GenerationUsage: Codable {
+  let provider, model: String
+  let inputTokens, outputTokens, durationMs: Int
+  let estimated: Bool
+}
 struct StreamEvent: Codable {
   let type: String
   let stage: String?
   let message: String?
   let result: GenerationResponse?
+  let usage: GenerationUsage?
 }
 
 func executable(_ name: String) -> String? {
@@ -228,8 +234,14 @@ func validateStrictSchema(_ value: Any) -> Bool {
 func selfTest() throws {
   let value = try JSONSerialization.jsonObject(with: Data(schema.utf8))
   guard validateStrictSchema(value) else { throw Failure(message: "Model schema is not strict") }
-  _ = try JSONDecoder().decode(GenerationResponse.self, from:
+  let response = try JSONDecoder().decode(GenerationResponse.self, from:
     Data(#"{"notes":[{"start":0,"end":0.5,"pitch":60,"velocity":80,"channel":0}],"message":"one octave up","suggestions":["shorten the ending"]}"#.utf8))
+  let usage = GenerationUsage(provider: "test", model: "test", inputTokens: 10,
+    outputTokens: 4, durationMs: 20, estimated: true)
+  let event = StreamEvent(type: "result", stage: "complete", message: response.message,
+    result: response, usage: usage)
+  guard try JSONDecoder().decode(StreamEvent.self, from: JSONEncoder().encode(event))
+    .usage?.inputTokens == 10 else { throw Failure(message: "Usage event did not round-trip") }
 }
 
 func prompt(_ payload: GenerationPayload) throws -> Data {
@@ -323,11 +335,19 @@ do {
   case "generate-stream":
     let data = FileHandle.standardInput.readDataToEndOfFile()
     let request = try JSONDecoder().decode(GenerateRequest.self, from: data)
-    try emit(StreamEvent(type: "status", stage: "preparing", message: "MIDIと指示を準備しています", result: nil))
+    let started = Date()
+    let inputBytes = try prompt(request.payload).count
+    try emit(StreamEvent(type: "status", stage: "preparing", message: "MIDIと指示を準備しています", result: nil, usage: nil))
     let result = try generate(request) { stage, message in
-      try? emit(StreamEvent(type: "status", stage: stage, message: message, result: nil))
+      try? emit(StreamEvent(type: "status", stage: stage, message: message, result: nil, usage: nil))
     }
-    try emit(StreamEvent(type: "result", stage: "complete", message: result.message, result: result))
+    let outputBytes = try JSONEncoder().encode(result).count
+    let usage = GenerationUsage(provider: request.providerId,
+      model: request.model.isEmpty ? "default" : request.model,
+      inputTokens: max(1, (inputBytes + 3) / 4), outputTokens: max(1, (outputBytes + 3) / 4),
+      durationMs: Int(-started.timeIntervalSinceNow * 1000), estimated: true)
+    try emit(StreamEvent(type: "result", stage: "complete", message: result.message,
+      result: result, usage: usage))
   case "self-test":
     try selfTest()
     FileHandle.standardOutput.write(Data("ModelBridge self-test passed\n".utf8))
@@ -335,7 +355,8 @@ do {
   }
 } catch {
   if CommandLine.arguments.dropFirst().first == "generate-stream" {
-    try? emit(StreamEvent(type: "error", stage: "failed", message: error.localizedDescription, result: nil))
+    try? emit(StreamEvent(type: "error", stage: "failed", message: error.localizedDescription,
+      result: nil, usage: nil))
   }
   FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
   exit(1)
